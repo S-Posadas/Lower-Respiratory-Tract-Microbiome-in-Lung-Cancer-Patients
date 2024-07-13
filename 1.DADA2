@@ -796,6 +796,9 @@ sample_data(physeq) <- estimate_richness(physeq, measures = c("Observed", "Shann
   merge(sample_data(physeq), ., by = 0) %>% tibble::column_to_rownames(var = "Row.names")
 sample_data(physeq)$InvSimpson[sample_data(physeq)$InvSimpson == Inf] = 0
 
+# Reorder samples for later paired tests
+physeq <- microViz::ps_reorder(physeq, order(sample_names(physeq)))
+
 #### End ####
 
 #### Save RData ####
