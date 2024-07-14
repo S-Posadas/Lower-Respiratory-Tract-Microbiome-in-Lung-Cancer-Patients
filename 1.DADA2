@@ -9,7 +9,10 @@ library(dada2); packageVersion("dada2")
 library(vegan)
 library(phyloseq)
 library(msa)
+library(ape)
 library(phangorn)
+library(microViz)
+library(decontam)
 library(ggplot2)
 library(gridExtra)
 library(openxlsx)
@@ -261,6 +264,7 @@ track <- merge(as.data.frame(out), as.data.frame(track), by = 0, all.x = T) %>% 
 
 colnames(track) <- c("sample","input", "filtered", "denoisedF.naive", "denoisedR.naive", "merged.naive", "denoisedF.prior", "denoisedR.prior", "merged.prior", "nonchim.prior", "nonchim.naive")
 
+
 head(track)
 
 # Save the track
@@ -415,22 +419,27 @@ sample_info <- sample_info %>%
   mutate(History.of.smoking = case_when(
     History.of.smoking == 0 ~ "None",
     History.of.smoking == 1 ~ "Cigarettes",
-    History.of.smoking == 2 ~ "Pipe"
-  ))
+    History.of.smoking == 2 ~ "Pipe"))
 sample_info$History.of.smoking <- factor(sample_info$History.of.smoking, levels = c("None", "Cigarettes", "Pipe"))
+
+sample_info$History.of.smoking.y.n <- sample_info$History.of.smoking.code
+sample_info <- sample_info %>%
+  mutate(History.of.smoking.y.n = case_when(
+    History.of.smoking.y.n == 0 ~ "No",
+    History.of.smoking.y.n == 1 ~ "Yes",
+    History.of.smoking.y.n == 2 ~ "Yes"))
+sample_info$History.of.smoking.y.n <- factor(sample_info$History.of.smoking.y.n, levels = c("No", "Yes"))
 
 sample_info <- sample_info %>%
   mutate(Active.smoker = case_when(
     Active.smoker == 0 ~ "No",
     Active.smoker == 1 ~ "Yes"))
-
 sample_info$Active.smoker <- factor(sample_info$Active.smoker, levels = c("No", "Yes"))
 
 sample_info <- sample_info %>%
   mutate(Side = case_when(
     Side == 0 ~ "Right",
     Side == 1 ~ "Left"))
-
 sample_info$Side <- factor(sample_info$Side)
 
 sample_info <- sample_info %>%
@@ -438,16 +447,14 @@ sample_info <- sample_info %>%
     Lobe == 1 ~ "Upper",
     Lobe == 2 ~ "Lower",
     Lobe == 3 ~ "Middle",
-    Lobe == 4 ~ "Lingula"
-  ))
+    Lobe == 4 ~ "Lingula"))
 sample_info$Lobe <- factor(sample_info$Lobe, levels = c("Upper", "Lower", "Middle", "Lingula"))
 
 sample_info <- sample_info %>%
   mutate(Synchronous.tumor = case_when(
     Synchronous.tumor == 0 ~ "No",
     Synchronous.tumor == 1 ~ "Second tumor contralateral",
-    Synchronous.tumor == 2 ~ "Thoracic metastasis of the primary tumor"
-  ))
+    Synchronous.tumor == 2 ~ "Thoracic metastasis of the primary tumor"))
 sample_info$Synchronous.tumor <- factor(sample_info$Synchronous.tumor)
 
 # Select colors for each variable
@@ -546,6 +553,13 @@ rarecurve(t(count_rar), step = 100, sample = raremax, col = col, lwd=2, lty = lt
  names(seqs) <- seqs # This propagates to the tip labels of the tree
  mult <- msa(seqs, method="ClustalW", type="dna", order="input")
  
+ aligned_asvs <- as(mult, "DNAStringSet")
+ names(aligned_asvs) <- seqs
+ writeXStringSet(aligned_asvs, filepath = file.path(res.dir, "aligned_asvs.fasta"), format = "fasta")
+
+ #-----> Fasttree in ubuntu
+ tree <- read.tree(file.path(res.dir, "tree.nwk"))
+ 
  # The phangorn package is then used to construct a phylogenetic tree. 
  # Here we first construct a neighbor-joining tree, and then fit a GTR+G+I maximum
  # likelihood tree using the neighbor-joining tree as a starting point.
@@ -579,19 +593,19 @@ physeq <- phyloseq(otu_table(count_tab, taxa_are_rows = T),   #taxa_are_rows=F (
 
 # Adding ASV Fasta sequences and Phylogenetic tree to phyloseq object
 
-# dna <- Biostrings::DNAStringSet(asv_seqs)  # Making ASV Fasta sequences 
-# names(dna) <- taxa_names(physeq)
-# 
-# ph_tree = phy_tree(fitGTR$tree)            # Making Phylogenetic tree
-# taxa_names(ph_tree) = taxa_names(dna)
-# 
-# physeq_dna_tree <- merge_phyloseq(physeq, ph_tree, dna) #Merging  ASV Fasta sequences and Phylogenetic tree to phyloseq object
-# 
-# taxa_names(physeq_dna_tree) <- paste0("ASV", seq(ntaxa(physeq_dna_tree)))
-# 
-# physeq
-# physeq_dna_tree
-# physeq = physeq_dna_tree
+dna <- Biostrings::DNAStringSet(asv_seqs)  # Making ASV Fasta sequences 
+names(dna) <- taxa_names(physeq)
+
+ph_tree = phy_tree(tree)            # Making Phylogenetic tree
+taxa_names(ph_tree) = taxa_names(dna)
+
+physeq_dna_tree <- merge_phyloseq(physeq, ph_tree, dna) #Merging  ASV Fasta sequences and Phylogenetic tree to phyloseq object
+
+taxa_names(physeq_dna_tree) <- paste0("ASV", seq(ntaxa(physeq_dna_tree)))
+
+physeq
+physeq_dna_tree
+physeq = physeq_dna_tree
 
 #### End ####
 
@@ -605,6 +619,9 @@ physeq_study = prune_samples(!sample_names(physeq) %in% rownames(samp_ex), physe
 physeq
 physeq_study
 physeq = physeq_study
+
+# Reorder samples for later paired tests (so Lung A and B have the same position in the vector)
+physeq <- microViz::ps_reorder(physeq, order(sample_names(physeq)))
 
 #### End ####
 
@@ -795,9 +812,6 @@ sample_data(physeq)$LibrarySizeDecontam <- sample_sums(physeq)
 sample_data(physeq) <- estimate_richness(physeq, measures = c("Observed", "Shannon","InvSimpson")) %>%
   merge(sample_data(physeq), ., by = 0) %>% tibble::column_to_rownames(var = "Row.names")
 sample_data(physeq)$InvSimpson[sample_data(physeq)$InvSimpson == Inf] = 0
-
-# Reorder samples for later paired tests
-physeq <- microViz::ps_reorder(physeq, order(sample_names(physeq)))
 
 #### End ####
 
