@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+
+FASTA="Results/fasta_tab.fa"
+OUTDIR="Results/2.blast"
+DBDIR=blastdb/nt
+
+mkdir -p $OUTDIR 
+
+export BLASTDB=/media/cantera/ramirez/Guides_Manuals/ramirez/Sara/Programs/blast/ # Change to directory containing blast databases
+
+blastn -query $FASTA \
+	-db $DBDIR \
+	-outfmt '6 qseqid sseqid pident length evalue score qlen qcovs stitle' \
+	-num_alignments 10 | awk 'BEGIN{FS=OFS="\t"; print "seqid\tsseqid\tpident\tlength\tevalue\tscore\tqlen\tqcovs\tstitle"}$3 >= 95 && $4 >= 10' | cut -d' ' -f1,2 | column -t  > ${OUTDIR}/tax_tab_95_10align_16S
