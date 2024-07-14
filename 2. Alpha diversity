@@ -29,8 +29,9 @@ R.dir <- file.path(res.dir, "RData")
 # sample_data(physeq_o)$M <- factor(sample_data(physeq_o)$M)
 
 #### End ####
-#
-# Define the variables and their possible values
+
+
+#### Define the variables and their possible values for a loop ####
 only_tumor <- c(TRUE, FALSE)
 only_non_synchronous <- c(TRUE, FALSE)
 only_direct <- c(TRUE, FALSE)
@@ -109,8 +110,8 @@ if (all_Diagnosis == T){
 
 #### Create directories for results ####
 
-a.stats <- file.path(res.dir,"comprob", "2.Alpha_stats", prefix)
-a.plots <- file.path(res.dir, "comprob", "3.Alpha_plots", prefix)
+a.stats <- file.path(res.dir, "2.Alpha_stats", prefix)
+a.plots <- file.path(res.dir, "3.Alpha_plots", prefix)
 
 dir.create(a.stats, recursive = T)
 dir.create(a.plots, recursive = T)
