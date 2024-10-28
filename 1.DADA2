@@ -291,26 +291,26 @@ load(file.path(R.dir,"1.dada2_track.RData"))
 ref_fasta = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_nr99_v138_train_set.fa.gz"
 #tryRC = TRUE -> reverse-complement orientation
 set.seed(123456789)
-taxa_GTDB <- assignTaxonomy(seqtab.nochim, ref_fasta,tryRC = TRUE )
-unname(taxa_GTDB)
+taxa <- assignTaxonomy(seqtab.nochim, ref_fasta,tryRC = TRUE )
+unname(taxa)
 
-taxa.print_GTDB  <- taxa_GTDB # Removing sequence rownames for display only
-rownames(taxa.print_GTDB) <- NULL
-head(taxa.print_GTDB)
+taxa.print  <- taxa # Removing sequence rownames for display only
+rownames(taxa.print) <- NULL
+head(taxa.print)
 
 #ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/GTDB_bac120_arc53_ssu_r214_species.fa.gz"
 #ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/old/GTDB_bac120_arc53_ssu_r207_Species.fa.gz"
 #ref_fasta_species = "C:/Users/posadas/Desktop/GitHub/VM/Databases/16S_ribosomal_RNA_blast_dada.format.species.fasta"
 ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_species_assignment_v138.fa.gz"
 
-taxa_species_GTDB = addSpecies(taxa_GTDB,ref_fasta_species, allowMultiple=TRUE)
-taxa.print_spp_GTDB  <- taxa_species_GTDB  # Removing sequence rownames for display only
-rownames(taxa.print_spp_GTDB) <- NULL
-head(taxa.print_spp_GTDB)
+taxa_species = addSpecies(taxa,ref_fasta_species, allowMultiple=TRUE)
+taxa.print_spp  <- taxa_species  # Removing sequence rownames for display only
+rownames(taxa.print_spp) <- NULL
+head(taxa.print_spp)
 
-length(taxa.print_spp_GTDB[,"Species"][!is.na(taxa.print_spp_GTDB[,"Species"])])
-length(taxa.print_spp_GTDB[,"Genus"][!is.na(taxa.print_spp_GTDB[,"Genus"])])
-length(taxa.print_GTDB[,"Species"][!is.na(taxa.print_GTDB[,"Species"])])
+length(taxa.print_spp[,"Species"][!is.na(taxa.print_spp[,"Species"])])
+length(taxa.print_spp[,"Genus"][!is.na(taxa.print_spp[,"Genus"])])
+length(taxa.print[,"Species"][!is.na(taxa.print[,"Species"])])
 #### End ####
 
 #### Save RData ####
@@ -348,7 +348,7 @@ colnames(count_tab.naive) <- sub("_F_filt.fastq", "", colnames(count_tab.naive))
 
 # tax table:
 
-# tax_tab <- taxa_species_GTDB
+#tax_tab <- taxa_species
 # row.names(tax_tab) <- sub(">", "", asv_headers)
 # write.table(tax_tab, "Results/tax_tab_GTDB.tsv", sep="\t", quote=F, col.names=NA)
 
@@ -381,12 +381,12 @@ colnames(count_tab) <- sub("_F_filt.fastq", "", colnames(count_tab)) %>% gsub("-
 
 # tax table:
 
-# tax_tab <- taxa_species_GTDB
+# tax_tab <- taxa_species
 # row.names(tax_tab) <- sub(">", "", asv_headers)
-# write.table(tax_tab, file.path(res.dir,"tax_tab_GTDB.tsv"), sep="\t", quote=F, col.names=NA)
-# write.xlsx(as.data.frame(tax_tab), file.path(res.dir,"tax_tab_SILVA.xlsx"), rowNames = T)
+#write.xlsx(as.data.frame(tax_tab), file.path(res.dir,"2.blast/tax_tab_SILVA.xlsx"), rowNames = T)
 
-tax_tab <- read.xlsx(file.path(res.dir,"2.blast/tax_tab_SILVA_blast_combined.xlsx"), rowNames = T)
+#### Blast unassigned species with script 1.2 Blast and 1.3 Filter_blast
+tax_tab <- read.xlsx(file.path(res.dir,"2.blast/tax_tab_SILVA_blast_species.xlsx"), rowNames = T)
 
 #### End ####
 
@@ -407,7 +407,7 @@ for (i in seq_along(variables)) {
 sample_info$Isolation <- factor(sample_info$Isolation, levels = c("Direct_Isolation", "Culture_Enriched"))
 sample_info$Lung <- factor(sample_info$Lung, levels = c("Normal", "Diseased"))
 sample_info$Histology.NSCLC <- factor(sample_info$Histology.NSCLC, levels = c("Adenocarcinoma", "Squamous cell carcinoma", "Adeno-Squamous cell carcinoma", "Others"))
-sample_info$Diagnosis <- factor(sample_info$Diagnosis, levels = c("Benign", "NSCLC", "V.a. NSCLC", "SCLC", "Atypical Carzinoid", "Carcinoid Tumorlet", "Metastasized Tumor"))
+sample_info$Diagnosis <- factor(sample_info$diagnosis, levels = c("Benign", "NSCLC", "V.a. NSCLC", "SCLC", "Atypical Carzinoid", "Carcinoid Tumorlet", "Metastasized Tumor"))
 
 sample_info <- sample_info %>%
   mutate(Sex = case_when(
@@ -495,8 +495,6 @@ count_tab <- cbind(count_tab, noreads)
 noreads.n <- matrix(0, ncol = length(rownames(sample_info)[!rownames(sample_info) %in% colnames(count_tab.naive)]),
                   nrow = length(rownames(count_tab.naive)),
                   dimnames = list(rownames(count_tab.naive), rownames(sample_info)[!rownames(sample_info) %in% colnames(count_tab.naive)]))
-
-
 count_tab.naive <- cbind(count_tab.naive, noreads.n)
 
 all(rownames(tax_tab) %in% rownames(count_tab))
@@ -511,19 +509,25 @@ gplots::venn(list(taxonomy=rownames(tax_tab), featuretable=rownames(count_tab)))
 col <- c("black", "darkred", "forestgreen", "orange", "blue", "yellow", "hotpink")
 lty <- c("solid", "dashed", "longdash", "dotdash")
 
+# From decontam physeq
+count_tab_decontam = data.frame(otu_table(physeq))
+
 # Exclude controls
-count_rar <- count_tab[,!colnames(count_tab) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
+
+count_rar <- count_tab_decontam[,!colnames(count_tab_decontam) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
 
 count_rar <- count_tab.naive[,!colnames(count_tab.naive) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
 
+count_rar <- count_tab[,!colnames(count_tab) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
+
 #Exclude samples with 0 counts
-count_rar <- count_rar[, colSums(count_rar) != 0]
+#count_rar <- count_rar[, colSums(count_rar) != 0]
 
 # Exclude culture samples
 
 count_rar <- count_rar[,-grep("_Cul", colnames(count_rar))]
 
-count_rar <- count_rar[,-grep("013|035", colnames(count_rar))]
+count_rar <- count_rar[,-grep("013|035|112", colnames(count_rar))]
 
 # Select batch
 unique(sample_info$Batch)
@@ -661,7 +665,7 @@ ggplot(data=cult, aes(x=Lung, y=LibrarySizeLog, color=Lung)) +
 
 ggsave(file.path(qc.dir, "LibSizeLog_cult.tiff"), width = 14, height = 10, dpi = 300)
 
-# Bar plots
+# Bar plots library size - diagnosis relation
 ggplot(data=direct, aes(x=Lung,  y = count, color=LibrarySizeBreaks, fill = LibrarySizeBreaks)) +
   geom_bar(position="fill", stat="identity") +
   ggtitle("Library size in directly isolated samples") +
@@ -747,7 +751,7 @@ sample_sums(physeq) #Nr of reads per Sample
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-#save.image(file.path(R.dir,"3.physeq.original.RData"))
+#save.image(file.path(R.dir,"3.physeq.original_2024.10.RData"))
 load(file.path(R.dir,"3.physeq.original.RData"))
 
 #### End ####
@@ -809,7 +813,7 @@ sample_data(physeq)$LibrarySizeDecontam <- sample_sums(physeq)
 
 #### Calculate and add alpha diversity to phyloseq object for later analysis ####
 
-sample_data(physeq) <- estimate_richness(physeq, measures = c("Observed", "Shannon","InvSimpson")) %>%
+sample_data(physeq) <- estimate_richness(physeq, measures = c("Observed","Chao1", "Shannon","Simpson","InvSimpson","ACE")) %>%
   merge(sample_data(physeq), ., by = 0) %>% tibble::column_to_rownames(var = "Row.names")
 sample_data(physeq)$InvSimpson[sample_data(physeq)$InvSimpson == Inf] = 0
 
@@ -818,7 +822,7 @@ sample_data(physeq)$InvSimpson[sample_data(physeq)$InvSimpson == Inf] = 0
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-#save.image(file.path(R.dir,"4.physeq.decontam.RData"))
+#save.image(file.path(R.dir,"4.physeq.decontam_2024.10.RData"))
 load(file.path(R.dir,"4.physeq.decontam.RData"))
 
 #### End ####
@@ -830,6 +834,24 @@ rank_names(physeq)
 table(tax_table(physeq)[, "Phylum"], exclude = NULL)
 
 physeq_oNA <- subset_taxa(physeq, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
+
+physeq
+physeq_oNA
+
+# > physeq
+# phyloseq-class experiment-level object
+# otu_table()   OTU Table:         [ 23378 taxa and 496 samples ]
+# sample_data() Sample Data:       [ 496 samples by 67 sample variables ]
+# tax_table()   Taxonomy Table:    [ 23378 taxa by 7 taxonomic ranks ]
+# phy_tree()    Phylogenetic Tree: [ 23378 tips and 23376 internal nodes ]
+# refseq()      DNAStringSet:      [ 23378 reference sequences ]
+# > physeq_oNA
+# phyloseq-class experiment-level object
+# otu_table()   OTU Table:         [ 23131 taxa and 496 samples ]
+# sample_data() Sample Data:       [ 496 samples by 67 sample variables ]
+# tax_table()   Taxonomy Table:    [ 23131 taxa by 7 taxonomic ranks ]
+# phy_tree()    Phylogenetic Tree: [ 23131 tips and 23129 internal nodes ]
+# refseq()      DNAStringSet:      [ 23131 reference sequences ]
 
 physeq = physeq_oNA
 
@@ -869,6 +891,22 @@ Samplepercentage = 0.01
 physeq_filtered = filter_taxa(physeq, function(x) sum(x > countperphyla) > (Samplepercentage*length(x)), TRUE)
 physeq_filtered
 physeq
+
+# > physeq_filtered
+# phyloseq-class experiment-level object
+# otu_table()   OTU Table:         [ 2695 taxa and 496 samples ]
+# sample_data() Sample Data:       [ 496 samples by 67 sample variables ]
+# tax_table()   Taxonomy Table:    [ 2695 taxa by 7 taxonomic ranks ]
+# phy_tree()    Phylogenetic Tree: [ 2695 tips and 2694 internal nodes ]
+# refseq()      DNAStringSet:      [ 2695 reference sequences ]
+# > physeq
+# phyloseq-class experiment-level object
+# otu_table()   OTU Table:         [ 23131 taxa and 496 samples ]
+# sample_data() Sample Data:       [ 496 samples by 67 sample variables ]
+# tax_table()   Taxonomy Table:    [ 23131 taxa by 7 taxonomic ranks ]
+# phy_tree()    Phylogenetic Tree: [ 23131 tips and 23129 internal nodes ]
+# refseq()      DNAStringSet:      [ 23131 reference sequences ]
+
 physeq = physeq_filtered
 
 #### End ####
@@ -918,7 +956,7 @@ grid.arrange(pl_ab_original, pl_ab_original_norm, pl_ab_original_norm_re)
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-save.image(file.path(R.dir,"5.phyloseq.filtered.RData"))
+save.image(file.path(R.dir,"5.phyloseq.filtered.2024.10.RData"))
 load(file.path(R.dir,"5.phyloseq.filtered.RData"))
 
 #### End ####
