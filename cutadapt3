@@ -1,0 +1,24 @@
+#!/usr/bin/bash
+
+if [ -z ${FOLDER} ];
+then
+    read -p "Folder (e.g. Metagenomics_zahn): " FOLDER
+else
+    echo "Trimming reads from $FOLDER1"
+fi
+
+DIR=trimmed_cutadapt3/${FOLDER}
+mkdir -p $DIR
+
+for file1 in $(ls trimmed_cutadapt/${FOLDER}/*1.fastq.gz)
+do
+    file2=${file1%%1.fastq.gz}"2.fastq.gz"
+    sample=$(basename ${file1%%R1.fastq.gz})
+    echo "Trimming $file1 and $file2"
+    time cutadapt -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC\
+                  -G GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -A CTGTCTCTTATACACATCTGACGCTGCCGACGA\
+                  $file1 $file2 \
+                  -o ${DIR}/${sample}R1.fastq.gz -p ${DIR}/${sample}R2.fastq.gz
+
+done
+
