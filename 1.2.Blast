@@ -1,14 +1,15 @@
 #!/usr/bin/bash
 
-FASTA="Results/fasta_tab.fa"
-OUTDIR="Results/2.blast"
-DBDIR=blastdb/nt
+FASTA="Results_trimmed_cutadapt3_20241118/fasta_tab.fa"
+OUTDIR="Results_trimmed_cutadapt3_20241118/2.blast"
+DBDIR=16S_ribosomal_RNA_blast/16S_ribosomal_RNA
 
 mkdir -p $OUTDIR 
 
-export BLASTDB=/media/cantera/ramirez/Guides_Manuals/ramirez/Sara/Programs/blast/ # Change to directory containing blast databases
+BLASTBIN=/media/michelep/aggrim/Guides_Manuals/ramirez/Sara/Programs/blast/ncbi-blast-2.14.1+/bin
+export BLASTDB=/media/michelep/aggrim/Guides_Manuals/ramirez/Sara/Programs/blast/ # Change to directory containing blast databases
 
-blastn -query $FASTA \
+${BLASTBIN}/blastn -query $FASTA \
 	-db $DBDIR \
 	-outfmt '6 qseqid sseqid pident length evalue score qlen qcovs stitle' \
 	-num_alignments 10 | awk 'BEGIN{FS=OFS="\t"; print "seqid\tsseqid\tpident\tlength\tevalue\tscore\tqlen\tqcovs\tstitle"}$3 >= 95 && $4 >= 10' | cut -d' ' -f1,2 | column -t  > ${OUTDIR}/tax_tab_95_10align_16S
