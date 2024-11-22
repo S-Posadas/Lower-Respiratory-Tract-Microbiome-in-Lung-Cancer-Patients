@@ -23,12 +23,12 @@ theme_set(theme_bw())
 
 #### Set Directory ####
 
-path <- "Data/trimmed_cutadapt3" # Change to the directory containing the fastq files
+path <- "Data/trimmed_cutadapt3/Samples_NC_PC" # Change to the directory containing the fastq files
 list.files(path)
 
 # Create directories to save results of the analysis 
 
-res.dir <- "Results_trimmed_cutadapt3_20240709"
+res.dir <- "Results_trimmed_cutadapt3_20241118"
 qc.dir <- file.path(res.dir, "1.QC")
 R.dir <- file.path(res.dir, "RData")
 
@@ -69,7 +69,7 @@ names(filtRs) <- sample.names
 # Watch out with trunclen, reads have to overlap at the end, you have to try out.
 # maxEE can be eased maxEE=c(2,5) if too many read are lost because of low quality.
 
-out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(220,220),
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(230,230),
                      maxN=0, maxEE=c(2,5), truncQ=2, rm.phix=TRUE,
                      compress=TRUE, multithread=FALSE) # On Windows set multithread=FALSE
 head(out)
@@ -115,22 +115,21 @@ for(batch in unique(filt$Batch)){
   errR[[batch]] <- dada2::learnErrors(filt[filt$Batch == batch,"filtRs"], multithread=FALSE)
 }
 
-# Plot errors
+# Plot errors and save as pdf
 
-plotErrors(errF[["0-Extra_PC_from_HP"]], nominalQ=TRUE)
-plotErrors(errF[["1-LML_001-006"]], nominalQ=TRUE)
-plotErrors(errF[["2-LML_007-030"]], nominalQ=TRUE)
-plotErrors(errF[["3-LML_031-054"]], nominalQ=TRUE)
-plotErrors(errF[["4-LML_055-077"]], nominalQ=TRUE)
-plotErrors(errF[["5-LML_078-100"]], nominalQ=TRUE)
-plotErrors(errF[["6-LML_101-122"]], nominalQ=TRUE)
-plotErrors(errR[["0-Extra_PC_from_HP"]], nominalQ=TRUE)
-plotErrors(errR[["1-LML_001-006"]], nominalQ=TRUE)
-plotErrors(errR[["2-LML_007-030"]], nominalQ=TRUE)
-plotErrors(errR[["3-LML_031-054"]], nominalQ=TRUE)
-plotErrors(errR[["4-LML_055-077"]], nominalQ=TRUE)
-plotErrors(errR[["5-LML_078-100"]], nominalQ=TRUE)
-plotErrors(errR[["6-LML_101-122"]], nominalQ=TRUE)
+batchs <- unique(filt$Batch) # Select batch names
+
+lapply(batchs, function(batch) {
+  
+  pdf(paste0(qc.dir, "/forward_error_rate_", batch, ".pdf"))
+  print(plotErrors(errF[[batch]], nominalQ = TRUE))
+  dev.off()
+  
+  pdf(paste0(qc.dir, "/reverse_error_rate_", batch, ".pdf"))
+  print(plotErrors(errR[[batch]], nominalQ = TRUE))
+  dev.off()
+  
+})
 
 #### End ####
 
@@ -144,7 +143,7 @@ for(batch in unique(filt$Batch)){
   dadaRs[[batch]] <- dada(filt[filt$Batch == batch,"filtRs"], err=errR[[batch]], pool = F, multithread=FALSE)
 }
 
-#Merge paired reads and obtain sequence table - just to compare with priors - can be skipped
+# Merge paired reads and obtain sequence table - just to compare with priors - can be skipped
 
 mergers.naive <- list()
 
@@ -153,6 +152,7 @@ mergers.naive[[batch]] <- mergePairs(dadaFs[[batch]], filt[filt$Batch == batch,"
                                dadaRs[[batch]], filt[filt$Batch == batch,"filtRs"], verbose=TRUE) # min overlap is 12 as default, but can be adjusted
 }
 
+# Obtain sequence tables
 seqtab.naive <- list()
 for(batch in unique(filt$Batch)){
   seqtab.naive[[batch]] <- makeSequenceTable(mergers.naive[[batch]])
@@ -160,15 +160,15 @@ for(batch in unique(filt$Batch)){
   print(dim(seqtab.naive[[batch]]))
 }
 
-seqtab.all.naive <- mergeSequenceTables(seqtab.naive[["0-Extra_PC_from_HP"]],seqtab.naive[["1-LML_001-006"]],
-                                        seqtab.naive[["2-LML_007-030"]],seqtab.naive[["3-LML_031-054"]],
-                                        seqtab.naive[["4-LML_055-077"]],seqtab.naive[["5-LML_078-100"]],
-                                        seqtab.naive[["6-LML_101-122"]])
+# Merged all sequence tables into one
+seqtab.all.naive <- seqtab.naive[[1]]
+for (i in 2:length(seqtab.naive)) {
+  seqtab.all.naive <- mergeSequenceTables(seqtab.all.naive, seqtab.naive[[i]])
+}
 
 seqtab.nochim.naive <- removeBimeraDenovo(seqtab.all.naive, method="consensus", multithread=FALSE, verbose=TRUE)
 
-
-# Construct sequence table
+# Construct sequence table from forward and reverse for priors
 seqtabFs <- list()
 seqtabRs <- list()
 for(batch in unique(filt$Batch)){
@@ -180,14 +180,14 @@ for(batch in unique(filt$Batch)){
 }
 
 # Merge sequence tables 
-seqtabFs.all <- mergeSequenceTables(seqtabFs[["0-Extra_PC_from_HP"]],seqtabFs[["1-LML_001-006"]],
-                                    seqtabFs[["2-LML_007-030"]],seqtabFs[["3-LML_031-054"]],
-                                    seqtabFs[["4-LML_055-077"]],seqtabFs[["5-LML_078-100"]],
-                                    seqtabFs[["6-LML_101-122"]])
-seqtabRs.all <- mergeSequenceTables(seqtabRs[["0-Extra_PC_from_HP"]],seqtabRs[["1-LML_001-006"]],
-                                    seqtabRs[["2-LML_007-030"]],seqtabRs[["3-LML_031-054"]],
-                                    seqtabRs[["4-LML_055-077"]],seqtabRs[["5-LML_078-100"]],
-                                    seqtabRs[["6-LML_101-122"]])
+seqtabFs.all <- seqtabFs[[1]]
+for (i in 2:length(seqtabFs)) {
+  seqtabFs.all <- mergeSequenceTables(seqtabFs.all, seqtabFs[[i]])
+}
+seqtabRs.all <- seqtabRs[[1]]
+for (i in 2:length(seqtabRs)) {
+  seqtabRs.all <- mergeSequenceTables(seqtabRs.all, seqtabRs[[i]])
+}
 
 #### End ####
 
@@ -225,11 +225,11 @@ for(batch in unique(filt$Batch)){
   print(dim(seqtab[[batch]]))
 }
 
-seqtab.all <- mergeSequenceTables(seqtab[["0-Extra_PC_from_HP"]],seqtab[["1-LML_001-006"]],
-                                  seqtab[["2-LML_007-030"]],seqtab[["3-LML_031-054"]],
-                                  seqtab[["4-LML_055-077"]],seqtab[["5-LML_078-100"]],
-                                  seqtab[["6-LML_101-122"]])
-
+# Merged all sequence tables into one
+seqtab.all <- seqtab[[1]]
+for (i in 2:length(seqtab)) {
+  seqtab.all <- mergeSequenceTables(seqtab.all, seqtab[[i]])
+}
 
 # Remove chimeras
 
@@ -276,10 +276,8 @@ write.csv(track, file = file.path(qc.dir, "Pipeline_Track.csv"))
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-dir.create("Results/RData")
-
-#save.image(file.path(R.dir,"1.dada2_track.RData"))
-load(file.path(R.dir,"1.dada2_track.RData"))
+save.image(file.path(R.dir,"1.dada2_track.RData"))
+#load(file.path(R.dir,"1.dada2_track.RData"))
 
 #### End ####
 
@@ -288,7 +286,9 @@ load(file.path(R.dir,"1.dada2_track.RData"))
 #ref_fasta = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/GTDB_bac120_arc53_ssu_r214_fullTaxo.fa.gz"
 #ref_fasta = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/old/GTDB_bac120_arc53_ssu_r207_fullTaxo.fa.gz"
 #ref_fasta = "C:/Users/posadas/Desktop/GitHub/VM/Databases/16S_ribosomal_RNA_blast_dada.format.fasta"
-ref_fasta = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_nr99_v138_train_set.fa.gz"
+#ref_fasta = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_nr99_v138_train_set.fa.gz"
+ref_fasta = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2024/silva_nr99_v138.2_toSpecies_trainset.fa.gz"
+
 #tryRC = TRUE -> reverse-complement orientation
 set.seed(123456789)
 taxa <- assignTaxonomy(seqtab.nochim, ref_fasta,tryRC = TRUE )
@@ -301,7 +301,8 @@ head(taxa.print)
 #ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/GTDB_bac120_arc53_ssu_r214_species.fa.gz"
 #ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/old/GTDB_bac120_arc53_ssu_r207_Species.fa.gz"
 #ref_fasta_species = "C:/Users/posadas/Desktop/GitHub/VM/Databases/16S_ribosomal_RNA_blast_dada.format.species.fasta"
-ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_species_assignment_v138.fa.gz"
+#ref_fasta_species = "C:/Users/posadas/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2020/silva_species_assignment_v138.fa.gz"
+ref_fasta_species = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2024/silva_v138.2_assignSpecies.fa.gz"
 
 taxa_species = addSpecies(taxa,ref_fasta_species, allowMultiple=TRUE)
 taxa.print_spp  <- taxa_species  # Removing sequence rownames for display only
@@ -316,7 +317,7 @@ length(taxa.print[,"Species"][!is.na(taxa.print[,"Species"])])
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-#save.image(file.path(R.dir, "2.dada2_taxonomy.RData"))
+save.image(file.path(R.dir, "2.dada2_taxonomy.RData"))
 #load("Results/RData/2.dada2_taxonomy.RData")
 
 #### End ####
