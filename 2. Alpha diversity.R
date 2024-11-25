@@ -19,17 +19,14 @@ theme_set(theme_bw())
 
 #### Load output from DADA2 pipeline with original phyloseq object ####
 
-res.dir <- "Results_trimmed_cutadapt3_20240709"
+res.dir <- "Results_trimmed_cutadapt3_20241118"
 R.dir <- file.path(res.dir, "RData")
- load(file.path(R.dir,"4.physeq.decontam_2024.10.RData"))
+load(file.path(R.dir,"4.physeq.decontam.RData"))
 physeq_o <- physeq
-
-sample_data(physeq_o)$T <- factor(sample_data(physeq_o)$T)
-sample_data(physeq_o)$N <- factor(sample_data(physeq_o)$N)
-sample_data(physeq_o)$M <- factor(sample_data(physeq_o)$M)
-sample_data(physeq_o)$Diagnosis <- factor(sample_data(physeq_o)$diagnosis, levels = c("Benign", "NSCLC", "V.a. NSCLC", "SCLC", "Atypical Carzinoid", "Carcinoid Tumorlet", "Metastasized Tumor"))
-
+colnames(physeq_o)
 #### End ####
+
+
 
 #### Automatic statistics and plots for exploration of alpha diversity ####
 #### Define the variables and their possible values for a loop ####
@@ -152,7 +149,7 @@ if(length(selected_Diagnosis) == 1 & all_Diagnosis == F){if (selected_Diagnosis 
 
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
   for (i in test.mw){
     if(nrow(rich) <51){exact = T}else{exact = F}
     U_test <- wilcox.test(rich[,n] ~ rich[,i], data = rich, paired = F, exact = exact)
@@ -190,7 +187,7 @@ if (only_tumor == F | (only_direct == F & only_culture == F)){ if (only_tumor ==
 
 wt <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for (i in test.w) {
     #direct.wt <- direct
    # direct.wt <- direct[rich$Synchronous.tumor == 0,]
@@ -230,7 +227,7 @@ if (length(selected_Diagnosis) > 1 & "NSCLC" %in% selected_Diagnosis | all_Diagn
 if (test.kw[1] != F){
 kw <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for(i in test.kw){
     if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
       rich.kw <- rich}
@@ -262,7 +259,7 @@ write.xlsx(list(kw, rich.kw), file = file.path(a.stats, "Kruskal.wallis.xlsx"))
 # Post hoc analysis
 
 ph <- list()
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for(i in test.kw){
     if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
       rich.kw <- rich}
@@ -275,7 +272,7 @@ write.xlsx(ph, file = file.path(a.stats, paste0("Kruskal.wallis_posthoc.MW.",p.a
 
 # Post hoc analysis
 ph <- list()
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for(i in test.kw){
     if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
       rich.kw <- rich}
@@ -571,10 +568,35 @@ rich_long$alpha_measure <- factor(rich_long$alpha_measure, levels = c("Shannon",
 
 #### End ####
 
+#### Explore correlation of sequencing depth and alpha diversity ####
+
+for(index in c("Observed", "Chao1", "ACE", "Shannon", "Simpson", "InvSimpson")){
+
+ggscatterstats(
+  data = rich,
+  x = !!sym(index), 
+  y = LibrarySizeDecontam, 
+  xlab = index,
+  ylab = "Library Size",
+  point.label.args = list(alpha = 0.7, size = 4, color = "grey50"),
+  marginal = F,
+  type ="n",
+  title = "Directly isolated samples",
+) + theme(text = element_text(size = 32),
+          plot.title = element_text(size = 28),
+          plot.subtitle = element_text(size = 18))
+  
+ggsave(file.path(qc.dir, paste0("LibSize_", index, "_direct.tiff")), width = 11, height = 10, dpi = 300)
+ggsave(file.path(qc.dir, paste0("LibSize_", index, "_direct.svg")), width = 11, height = 10, dpi = 300)
+
+}
+
+#### End ####
+
 #### Create directories for results ####
 
-a.stats <- file.path(res.dir, "2.Alpha_stats_2024.10", "Directed_questions")
-a.plots <- file.path(res.dir, "3.Alpha_plots_2024.10", "Directed_questions")
+a.stats <- file.path(res.dir, "2.Alpha_stats", "Directed_questions")
+a.plots <- file.path(res.dir, "3.Alpha_plots", "Directed_questions")
 
 dir.create(a.stats, recursive = T)
 dir.create(a.plots, recursive = T)
@@ -598,7 +620,7 @@ thm.x <- theme(text = element_text(size = text_size),
 # In all diagnosis
 wt <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
     W_test <- wilcox.test(rich[, n] ~ rich[, "Lung"], data = rich, paired = T, exact = T)
     z <- abs(qnorm(W_test$p.value/2))
     r <- z/sqrt(nrow(rich))
@@ -630,7 +652,7 @@ ggsave(plot = P.Q1a, file.path(a.plots, "P.Q1a.svg"), width = 10, height = 8, dp
 # In each of the three main diagnoses
 wt <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for (i in c("NSCLC", "SCLC", "Benign")) {  
   W_test <- wilcox.test(rich[rich$Diagnosis == i, n] ~ rich[rich$Diagnosis == i, "Lung"], data = rich, paired = T, exact = T)
   z <- abs(qnorm(W_test$p.value/2))
@@ -653,8 +675,6 @@ for (i in c("NSCLC", "SCLC", "Benign")){
 wt
 write.xlsx(list(wt,rich), file.path(a.stats, "Q1b.xlsx"), rowNames = T)
 
-P.Q1b
-
 P.Q1b <- ggplot(rich_long[rich_long$Diagnosis %in% c("NSCLC", "SCLC", "Benign"),], aes(x = Lung, y = alpha_value, color = Diagnosis, fill = Diagnosis)) +
   geom_boxplot(alpha = 0.5) +
   scale_fill_manual(values = diagnosis_col) + scale_color_manual(values = diagnosis_col) +
@@ -663,15 +683,15 @@ P.Q1b <- ggplot(rich_long[rich_long$Diagnosis %in% c("NSCLC", "SCLC", "Benign"),
 
 P.Q1b
 
-ggsave(plot = P.Q1a, file.path(a.plots, "P.Q1b.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P.Q1a, file.path(a.plots, "P.Q1b.svg"), width = 10, height = 8, dpi = 300)
+ggsave(plot = P.Q1b, file.path(a.plots, "P.Q1b.tiff"), width = 10, height = 8, dpi = 300)
+ggsave(plot = P.Q1b, file.path(a.plots, "P.Q1b.svg"), width = 10, height = 8, dpi = 300)
 
-#### Q2: Analysis of Diseased Lung samples from Directly isolated samples without non synchronous tumor ####
+#### Q2: Is there a difference between Diseased vs the parallel Normal Lung without samples with synchronous tumor (after decontamination, only directly isolated samples) ####
 
 # In all diagnosis
 wt <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   W_test <- wilcox.test(rich[rich$Synchronous.tumor == "No", n] ~ rich[rich$Synchronous.tumor == "No", "Lung"], data = rich, paired = T, exact = T)
   z <- abs(qnorm(W_test$p.value/2))
   r <- z/sqrt(nrow(rich[rich$Synchronous.tumor == "No", ]))
@@ -702,7 +722,7 @@ ggsave(plot = P.Q2a, file.path(a.plots, "P.Q2a.svg"), width = 10, height = 8, dp
 # In each of the three main diagnoses
 wt <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   for (i in c("NSCLC", "SCLC")) {  
     W_test <- wilcox.test(rich[rich$Diagnosis == i & rich$Synchronous.tumor == "No", n] ~
                             rich[rich$Diagnosis == i & rich$Synchronous.tumor == "No", "Lung"], data = rich, paired = T, exact = T)
@@ -748,7 +768,7 @@ rich_long.diag <- rich_long[rich_long$Diagnosis %in% c("NSCLC", "SCLC", "Benign"
 
 kw <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
     kruskal <- kruskal.test(rich.diag[,n] ~ rich.diag[,"Diagnosis"])
     eta_squared <- (kruskal$statistic - 3 + 1)/(nrow(rich.diag) - 3)
     f <- sqrt(eta_squared/(1-eta_squared))
@@ -767,7 +787,7 @@ kw$p.adj.bonferroni <- p.adjust(kw$`p-value`, method = "bonferroni")
 write.xlsx(list(kw,rich), file.path(a.stats, "Q3.xlsx"), rowNames = T)
 
 ph <- list()
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
     posthocw <- pairwise.wilcox.test(rich.diag[,n],rich.diag[,"Diagnosis"], paired = F, p.adjust= "BH")
     df <- rbind(posthocw$p.value, c(posthocw$method, posthocw$p.adjust), c(n,"Diagnosis"))
     ph[[n]] <- df
@@ -797,7 +817,7 @@ rich_long.NSCLC <- rich_long[rich_long$Diagnosis == "NSCLC" & rich_long$Lung == 
 # Previous smokers and non smokers
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
     if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
     U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"Histology.NSCLC"], data = rich.NSCLC, paired = F, exact = exact)
     z <- abs(qnorm(U_test$p.value/2))
@@ -831,7 +851,7 @@ ggsave(plot = P.Q4a, file.path(a.plots, "P.Q4a.svg"), width = 10, height = 8, dp
 # Only previous smokers
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes",]) <51){exact = T}else{exact = F}
   U_test <- wilcox.test(rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes",n] ~
                           rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes","Histology.NSCLC"], data = rich.NSCLC, paired = F, exact = exact)
@@ -868,7 +888,7 @@ ggsave(plot = P.Q4b, file.path(a.plots, "P.Q4b.svg"), width = 10, height = 8, dp
 # NSCLC
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
   U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"History.of.smoking.y.n"], data = rich.NSCLC, paired = F, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
@@ -905,7 +925,7 @@ rich_long.ben <- rich_long[rich_long$Diagnosis == "Benign" & rich_long$Lung == "
 
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.ben) <51){exact = T}else{exact = F}
   U_test <- wilcox.test(rich.ben[,n] ~ rich.ben[,"History.of.smoking.y.n"], data = rich.ben, paired = F, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
@@ -940,7 +960,7 @@ ggsave(plot = P.Q5b, file.path(a.plots, "P.Q5b.svg"), width = 10, height = 8, dp
 # T
 kw <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   kruskal <- kruskal.test(rich.NSCLC[,n] ~ rich.NSCLC[,"T"])
   eta_squared <- (kruskal$statistic - 3 + 1)/(nrow(rich.NSCLC) - 3)
   f <- sqrt(eta_squared/(1-eta_squared))
@@ -960,7 +980,7 @@ kw
 write.xlsx(list(kw,rich), file.path(a.stats, "Q6a.xlsx"), rowNames = T)
 
 ph <- list()
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   posthocw <- pairwise.wilcox.test(rich.NSCLC[,n],rich.NSCLC[,"T"], paired = F, p.adjust= "BH")
   df <- rbind(posthocw$p.value, c(posthocw$method, posthocw$p.adjust), c(n,"T"))
   ph[[n]] <- df
@@ -982,7 +1002,7 @@ ggsave(plot = P.Q6a, file.path(a.plots, "P.Q6a.svg"), width = 10, height = 8, dp
 # N 
 kw <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   kruskal <- kruskal.test(rich.NSCLC[,n] ~ rich.NSCLC[,"N"])
   eta_squared <- (kruskal$statistic - 3 + 1)/(nrow(rich.NSCLC) - 3)
   f <- sqrt(eta_squared/(1-eta_squared))
@@ -1002,7 +1022,7 @@ kw
 write.xlsx(list(kw,rich), file.path(a.stats, "Q6b.xlsx"), rowNames = T)
 
 ph <- list()
-for (n in c("Observed", "Shannon", "InvSimpson")) {
+for (n in c("Shannon", "InvSimpson")) {
   posthocw <- pairwise.wilcox.test(rich.NSCLC[,n],rich.NSCLC[,"N"], paired = F, p.adjust= "BH")
   df <- rbind(posthocw$p.value, c(posthocw$method, posthocw$p.adjust), c(n,"N"))
   ph[[n]] <- df
@@ -1025,7 +1045,7 @@ ggsave(plot = P.Q6b, file.path(a.plots, "P.Q6b.svg"), width = 10, height = 8, dp
 
 mwut <- list()
 
-for (n in c("Observed", "Shannon", "InvSimpson")){
+for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
   U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"M"], data = rich.NSCLC, paired = F, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
@@ -1042,7 +1062,7 @@ mwut$p.adj.bonferroni <- p.adjust(mwut$`p-value`, method = "bonferroni")
 
 mwut
 
-write.xlsx(list(kw,rich), file.path(a.stats, "Q6c.xlsx"), rowNames = T)
+write.xlsx(list(mwut,rich), file.path(a.stats, "Q6c.xlsx"), rowNames = T)
 
 P.Q6c <- ggplot(subset(rich_long.NSCLC, !is.na(M)), aes(x = M, y = alpha_value)) + 
   geom_point() + geom_boxplot(alpha = 0.5) +
