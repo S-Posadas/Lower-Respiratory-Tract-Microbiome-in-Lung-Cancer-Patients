@@ -13,6 +13,7 @@ library(gridExtra)
 library(openxlsx)
 library(ggstatsplot)
 library(tidyr)
+library(cowplot)
 theme_set(theme_bw())
 
 #### End ####
@@ -23,7 +24,7 @@ res.dir <- "Results_trimmed_cutadapt3_20241118"
 R.dir <- file.path(res.dir, "RData")
 load(file.path(R.dir,"4.physeq.decontam.RData"))
 physeq_o <- physeq
-colnames(physeq_o)
+
 #### End ####
 
 
@@ -954,6 +955,56 @@ P.Q5b
 
 ggsave(plot = P.Q5b, file.path(a.plots, "P.Q5b.tiff"), width = 10, height = 8, dpi = 300)
 ggsave(plot = P.Q5b, file.path(a.plots, "P.Q5b.svg"), width = 10, height = 8, dpi = 300)
+
+# Correlation between packyears and alpha diversity
+pack.years.NSCLC <- list()
+for(index in c("Shannon", "InvSimpson")){
+  
+  pack.years.NSCLC[[index]] <- ggscatterstats(
+    data = rich.NSCLC,
+    y = !!sym(index), 
+    x = Pack.years, 
+    ylab = index,
+    xlab = "Pack years",
+    point.label.args = list(alpha = 0.7, size = 4, color = "grey50"),
+    marginal = F,
+    type ="n",
+    title = NULL
+  ) + theme(text = element_text(size = 32),
+            plot.subtitle = element_text(size = 16))
+}
+
+plot_grid(top = textGrob("Relationship between alpha diversity and pack years in NSCLC",gp=gpar(fontsize=30, fontface="bold")),
+          nrow= 2, rel_heights = c(1,8),
+          plot_grid(pack.years.NSCLC[[1]], pack.years.NSCLC[[2]]))
+
+ggsave(file.path(a.plots, "Q5c_NSCLC.tiff"), width = 18, height = 10, dpi = 300)
+ggsave(file.path(a.plots, "Q5c_NSCLC.svg"), width = 18, height = 10, dpi = 300)
+
+pack.years.ben <- list()
+for(index in c("Shannon", "InvSimpson")){
+  
+  pack.years.ben[[index]] <- ggscatterstats(
+    data = rich.ben,
+    y = !!sym(index), 
+    x = Pack.years, 
+    ylab = index,
+    xlab = "Pack years",
+    point.label.args = list(alpha = 0.7, size = 4, color = "grey50"),
+    marginal = F,
+    type ="n",
+    title = NULL
+  ) + theme(text = element_text(size = 32),
+            plot.subtitle = element_text(size = 16))
+}
+
+plot_grid(top = textGrob("Relationship between alpha diversity and pack years in benign tumor",gp=gpar(fontsize=30, fontface="bold")),
+          nrow= 2, rel_heights = c(1,8),
+          plot_grid(pack.years.ben[[1]], pack.years.ben[[2]]))
+
+ggsave(file.path(a.plots, "Q5d_benign.tiff"), width = 18, height = 10, dpi = 300)
+ggsave(file.path(a.plots, "Q5d_benign.svg"), width = 18, height = 10, dpi = 300)
+
 
 #### Q6: Does the N and M stage of NSCLC have an impact on the lung microbiome ####
 
