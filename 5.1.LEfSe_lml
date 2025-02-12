@@ -1,0 +1,68 @@
+#!/usr/bin/bash
+
+# Activate lefse environment !!
+
+INPUTS=(
+"physeq_re_lfse_q0_batch_p-g.txt" "physeq_re_lfse_q0_batch_p-s.txt" "physeq_re_lfse_q0_batch_p-g_noNA.txt" "physeq_re_lfse_q0_batch_p-s_noNA.txt"
+#"physeq_re_lfse_q0.1a_libsize_p-g.txt" "physeq_re_lfse_q0.1a_libsize_p-s.txt" "physeq_re_lfse_q0.1a_libsize_p-g_noNA.txt" "physeq_re_lfse_q0.1a_libsize_p-s_noNA.txt"
+#"physeq_re_lfse_q1a_lung_p-g.txt" "physeq_re_lfse_q1a_lung_p-s.txt" "physeq_re_lfse_q1a_lung_p-g_noNA.txt" "physeq_re_lfse_q1a_lung_p-s_noNA.txt"
+#"physeq_re_lfse_q1b_lung_NSCLC_p-g.txt" "physeq_re_lfse_q1b_lung_NSCLC_p-s.txt" "physeq_re_lfse_q1b_lung_NSCLC_p-g_noNA.txt" "physeq_re_lfse_q1b_lung_NSCLC_p-s_noNA.txt"
+#"physeq_re_lfse_q2a_lung_p-g.txt" "physeq_re_lfse_q2a_lung_p-s.txt" "physeq_re_lfse_q2a_lung_p-g_noNA.txt" "physeq_re_lfse_q2a_lung_p-s_noNA.txt"
+#"physeq_re_lfse_q2b_lung_NSCLC_p-g.txt" "physeq_re_lfse_q2b_lung_NSCLC_p-s.txt" "physeq_re_lfse_q2b_lung_NSCLC_p-g_noNA.txt" "physeq_re_lfse_q2b_lung_NSCLC_p-s_noNA.txt"
+#"physeq_re_lfse_q3_diagnosis_p-g.txt" "physeq_re_lfse_q3_diagnosis_p-s.txt" "physeq_re_lfse_q3_diagnosis_p-g_noNA.txt" "physeq_re_lfse_q3_diagnosis_p-s_noNA.txt"
+#"physeq_re_lfse_q4_histology_p-g.txt" "physeq_re_lfse_q4_histology_p-s.txt" "physeq_re_lfse_q4_histology_p-g_noNA.txt" "physeq_re_lfse_q4_histology_p-s_noNA.txt"
+#"physeq_re_lfse_q5a_History.of.smoking.y.n_p-g.txt" "physeq_re_lfse_q5a_History.of.smoking.y.n_p-s.txt" "physeq_re_lfse_q5a_History.of.smoking.y.n_p-g_noNA.txt" "physeq_re_lfse_q5a_History.of.smoking.y.n_p-s_noNA.txt"
+"physeq_re_lfse_q5aa_History.of.smoking.y.n_p-g.txt" "physeq_re_lfse_q5aa_History.of.smoking.y.n_p-s.txt" "physeq_re_lfse_q5aa_History.of.smoking.y.n_p-g_noNA.txt" "physeq_re_lfse_q5aa_History.of.smoking.y.n_p-s_noNA.txt"
+#"physeq_re_lfse_q6a_T_p-g.txt" "physeq_re_lfse_q6a_T_p-s.txt" "physeq_re_lfse_q6a_T_p-g_noNA.txt" "physeq_re_lfse_q6a_T_p-s_noNA.txt"
+#"physeq_re_lfse_q6b_N_p-g.txt" "physeq_re_lfse_q6b_N_p-s.txt" "physeq_re_lfse_q6b_N_p-g_noNA.txt" "physeq_re_lfse_q6b_N_p-s_noNA.txt"
+#"physeq_re_lfse_q6c_M_p-g.txt" "physeq_re_lfse_q6c_M_p-s.txt" "physeq_re_lfse_q6c_M_p-g_noNA.txt" "physeq_re_lfse_q6c_M_p-s_noNA.txt"
+)
+
+
+for INPUT in "${INPUTS[@]}"; do
+
+#INPUT=physeq_re_lfse_q5a_History.of.smoking.y.n_p-s_noNA.txt
+ANOVA=0.05
+WILC=0.1
+LDA=2
+DIR=${INPUT%%.txt}
+mkdir -p $DIR
+echo "Output is in ${DIR}"
+
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3218848/
+#"LEfSe scores can be interpreted as the degree of consistent difference in relative abundance between features in the two classes of analyzed microbial communities.
+#The histogram thus identifies which clades among all those detected as statistically and biologically differential explain the greatest differences between communities."
+
+echo "Running LEfSe on $INPUT"
+
+# lefse-format_input.py convert the input data matrix to the format for LEfSe.
+# -u is sample ID ; -c is class ; -s is subclass (default -1 meaning no subclass)
+lefse_format_input.py ${INPUT} ${DIR}/lfse.in -c 2 -u 1 -s -1 -o 1000000 
+
+# lefse_run.py performs the actual statistica analysis
+lefse_run.py ${DIR}/lfse.in ${DIR}/lfse.res -a $ANOVA -w $WILC -r lda -l $LDA -s 1 #-y 1 #--min_c 1 #-e 1 -y 0     
+
+echo "anova $ANOVA wilcoxon $WILC lda $LDA" > ${DIR}/parameters.txt
+
+# lefse_plot_res.py visualizes the output
+lefse_plot_res.py ${DIR}/lfse.res ${DIR}/lfse.plot2.svg --format svg --dpi 1200 --class_legend_font_size 15 \
+	--feature_font_size 10
+
+# lefse_plot_cladogram.py visualizes the output on a hierarchical tree
+lefse_plot_cladogram.py ${DIR}/lfse.res ${DIR}/lfse.cladogram2.svg --format svg --dpi 1200 \
+	--title " " \
+	--class_legend_vis 1 --class_legend_font_size 15 \
+	--label_font_size 10 \
+	--max_point_size 4 \
+	--clade_sep 0.5 \
+	--siblings_connector_width 1 --parents_connector_width 0.75 \
+	--labeled_start_lev 1 --labeled_stop_lev 7 \
+	--abrv_stop_lev 7   \
+	--right_space_prop 0.1 
+
+# Obtain the images for all the features that are detected as biomarkers
+#mkdir -p ${DIR}/biomarkers_raw_images
+
+#lefse_plot_features.py ${DIR}/lfse.in ${DIR}/lfse.res ${DIR}/biomarkers_raw_images/
+
+done
