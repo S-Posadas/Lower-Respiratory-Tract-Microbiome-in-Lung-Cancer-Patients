@@ -20,288 +20,23 @@ theme_set(theme_bw())
 
 #### Load output from DADA2 pipeline with original phyloseq object ####
 
-res.dir <- "Results_trimmed_cutadapt3_20241118"
+res.dir <- "Results_trimmed_cutadapt3_20241216"
 R.dir <- file.path(res.dir, "RData")
 load(file.path(R.dir,"4.physeq.decontam.RData"))
-physeq_o <- physeq
-
-#### End ####
-
-
-
-#### Automatic statistics and plots for exploration of alpha diversity ####
-#### Define the variables and their possible values for a loop ####
-only_tumor <- c(TRUE, FALSE)
-only_non_synchronous <- c(TRUE, FALSE)
-only_direct <- c(TRUE, FALSE)
-
-# Generate all combinations
-combinations <- expand.grid(
-  #only_direct = only_direct,
-  only_tumor = only_tumor,
-  only_non_synchronous = only_non_synchronous
-  
-)
-
-for (i in 1:nrow(combinations)) {
-  only_tumor <- combinations$only_tumor[i]
-  only_non_synchronous <- combinations$only_non_synchronous[i]
- # only_direct <- combinations$only_direct[i]
-  
-#### Select samples of interest ####
-
-only_tumor = F
-only_non_synchronous = F
-all_Diagnosis = T
-selected_Diagnosis = c("NSCLC", "SCLC", "Benign")
-only_main_histology = F
-only_smoker = F
-only_non_smoker = F
-only_direct = T
-only_culture = F
-
-prefix = "2024.10_"
-
-physeq = physeq_o
-physeq = subset_samples(physeq, sample_names(physeq) %in% c(rownames(sample_info[!sample_info$Sample_or_Control %in% c("Negative control sample", "Positive control sample"),]))) 
-
-
-if (only_direct == T){
-  physeq = subset_samples(physeq, sample_data(physeq)$Isolation == "Direct_Isolation") 
-  prefix = paste0(prefix, "direct_isolation_")
-}else if (only_culture == T){
-  physeq = subset_samples(physeq, sample_data(physeq)$Isolation == "Culture_Enriched")
-  prefix = paste0(prefix, "culture_enriched_")
-}
-
-if (only_tumor == T){
-  physeq = subset_samples(physeq, sample_data(physeq)$Lung == "Diseased")
-  prefix = paste0(prefix, "diseased_lung_")
-}
-
-if (only_non_synchronous == T & (all_Diagnosis == T | selected_Diagnosis[1] != "Benign")){
-  physeq = subset_samples(physeq, sample_data(physeq)$Synchronous.tumor == "No")
-  prefix = paste0(prefix, "no_synchronous_")
-}
-
-if (only_main_histology == T & all_Diagnosis == F & length(selected_Diagnosis) == 1){if (selected_Diagnosis == "NSCLC"){
-  physeq = subset_samples(physeq, sample_data(physeq)$Histology.NSCLC %in% c("Adenocarcinoma", "Squamous cell carcinoma"))
-  prefix = paste0(prefix, "main_histology_")
-}}
-
-if (only_smoker == T){
-  physeq = subset_samples(physeq, sample_data(physeq)$History.of.smoking %in% c("Cigarettes", "Pipe"))
-  prefix = paste0(prefix, "smokers_")
-}else if (only_non_smoker == T & all_Diagnosis == F & length(selected_Diagnosis) == 1){if (selected_Diagnosis == "NSCLC"){
-  physeq = subset_samples(physeq, sample_data(physeq)$History.of.smoking %in% c("None"))
-  prefix = paste0(prefix, "nonsmokers_") }}
-
-if (all_Diagnosis == T){
-  physeq = physeq
-  prefix = paste0(prefix, "all_diag_")
-} else {
-  physeq = subset_samples(physeq, sample_data(physeq)$Diagnosis %in% selected_Diagnosis)
-  prefix = paste0(prefix, paste(selected_Diagnosis, collapse = "."))
-  
-}
 
 #### End ####
 
 #### Create directories for results ####
 
-a.stats <- file.path(res.dir, "2.Alpha_stats_2024.10", prefix)
-a.plots <- file.path(res.dir, "3.Alpha_plots_2024.10", prefix)
+a.stats <- file.path(res.dir, "2.Alpha_stats")
+a.plots <- file.path(res.dir, "3.Alpha_plots")
 
 dir.create(a.stats, recursive = T)
 dir.create(a.plots, recursive = T)
 
 #### End ####
 
-#### Convert sample data to data frame ####
-
-rich <- data.frame(sample_data(physeq))
-dim(rich)
-
-# Convert to long data frame for the facets
-rich_long <- rich %>%
-  pivot_longer(cols = c(Observed, Shannon, InvSimpson),
-               names_to = "alpha_measure",
-               values_to = "alpha_value")
-
-rich_long$alpha_measure <- factor(rich_long$alpha_measure, levels = c("Observed", "Shannon", "InvSimpson"))
-
-#### End ####
-
-#### Statistics ####
-# Lung and Isolation are paired -> Wilcoxon
-# Rest is unpaired -> Mann-Whitney or Kruskal-Wallis
-
-# Mann-Whitney-U-Test 
-if(length(selected_Diagnosis) == 1 & all_Diagnosis == F){if (selected_Diagnosis == "SCLC"){
-  test.mw = c("Sex", "Active.smoker", "Side")}
-  else if(selected_Diagnosis == "Benign"){ test.mw = c("Sex", "Side", "History.of.smoking.y.n")}
-  else if(selected_Diagnosis == "NSCLC"){
-    if(only_main_histology == T & only_non_smoker == F & only_smoker == F){
-      test.mw = c("Sex", "Active.smoker", "Side", "Histology.NSCLC", "History.of.smoking.y.n")
-    }else if(only_main_histology == T & (only_non_smoker == T | only_smoker == T)){
-      test.mw = c("Sex", "Active.smoker", "Side", "Histology.NSCLC")
-    }else {test.mw = c("Sex", "Active.smoker", "Side", "History.of.smoking.y.n")}}
-}else{ test.mw = c("Sex", "Active.smoker", "Side", "History.of.smoking.y.n")}
-
-mwut <- list()
-
-for (n in c("Shannon", "InvSimpson")){
-  for (i in test.mw){
-    if(nrow(rich) <51){exact = T}else{exact = F}
-    U_test <- wilcox.test(rich[,n] ~ rich[,i], data = rich, paired = F, exact = exact)
-    z <- abs(qnorm(U_test$p.value/2))
-    r <- z/sqrt(nrow(rich))           #Effect size calculation
-    tab <- c(U_test$method, n, i, U_test$statistic, U_test$p.value, r)
-    mwut[[paste0(i, "_", n)]] <- tab
-  }
-}
-
-mwut <- as.data.frame(do.call(rbind, mwut))
-colnames(mwut) <- c("Test", "Variable1", "Variable2", "Statistic", "p-value", "Effect size")
-
-mwut$p.adj.BH.same.var <- NA
-mwut$p.adj.bonferroni.same.var <- NA
-  
-for (i in test.mw){
-mwut[mwut$Variable2 == i,]$p.adj.BH.same.var <- p.adjust(mwut[mwut$Variable2 == i,]$`p-value`, method = "BH")
-mwut[mwut$Variable2 == i,]$p.adj.bonferroni.same.var <- p.adjust(mwut[mwut$Variable2 == i,]$`p-value`, method = "bonferroni")
-}
-
-mwut$p.adj.BH <- p.adjust(mwut$`p-value`, method = "BH")
-mwut$p.adj.bonferroni <- p.adjust(mwut$`p-value`, method = "bonferroni")
-
-write.xlsx(list(mwut,rich), file.path(a.stats, "Mann_Whitney_u_test.xlsx"), rowNames = T)
-
-# Wilcoxon-Test 
-# Wilcoxon needs paired data
-# Inspect the Study_Nr that do not have one of each
-
-table(rich$Lung, rich$Study_Nr) #"LML_017","LML_086"
-
-if (only_tumor == F | (only_direct == F & only_culture == F)){ if (only_tumor == F & only_direct == F & only_culture == F){ test.w = c("Lung", "Isolation")}
-  else if (only_tumor == F & (only_direct == T | only_culture == T)){ test.w = "Lung" }else if(only_tumor == T & only_direct == F & only_culture == F){ test.w = "Isolation"}
-
-wt <- list()
-
-for (n in c("Shannon", "InvSimpson")) {
-  for (i in test.w) {
-    #direct.wt <- direct
-   # direct.wt <- direct[rich$Synchronous.tumor == 0,]
-    W_test <- wilcox.test(rich[, n] ~ rich[, i], data = rich, paired = T, exact = T)
-    z <- abs(qnorm(W_test$p.value/2))
-    r <- z/sqrt(nrow(rich))
-    
-    tab <- c(W_test$method, n, i, W_test$statistic, W_test$p.value, r)
-    wt[[paste0(n, "_", i)]] <- tab
-  }
-}
-
-wt <- as.data.frame(do.call(rbind, wt))
-colnames(wt) <- c("Test", "Variable1", "Variable2", "Statistic", "p-value", "Effect size")
-
-wt$p.adj.BH.same.var <- NA
-wt$p.adj.bonferroni.same.var <- NA
-
-for (i in test.w){
-  wt[wt$Variable2 == i,]$p.adj.BH.same.var <- p.adjust(wt[wt$Variable2 == i,]$`p-value`, method = "BH")
-  wt[wt$Variable2 == i,]$p.adj.bonferroni.same.var <- p.adjust(wt[wt$Variable2 == i,]$`p-value`, method = "bonferroni")
-}
-
-wt$p.adj.BH <- p.adjust(wt$`p-value`, method = "BH")
-wt$p.adj.bonferroni <- p.adjust(wt$`p-value`, method = "bonferroni")
-
-write.xlsx(list(wt,rich), file.path(a.stats, "Wilcoxon_test.xlsx"), rowNames = T)
-}
-
-# Kruskall-Wallis
-#https://bjoernwalther.com/kruskal-wallis-test-in-r-rechnen/
-if (length(selected_Diagnosis) > 1 & "NSCLC" %in% selected_Diagnosis | all_Diagnosis == T) {test.kw = c("Diagnosis", "History.of.smoking", "Histology.NSCLC", "Lobe")
-}else if (selected_Diagnosis == "NSCLC" & all_Diagnosis == F) {test.kw = c("History.of.smoking", "Histology.NSCLC", "Lobe", "T", "N", "M")
-}else if (selected_Diagnosis == "SCLC" & all_Diagnosis == F) {test.kw = c("Lobe")
-}else if (selected_Diagnosis == "Benign" & all_Diagnosis == F)  {test.kw = F}
-
-if (test.kw[1] != F){
-kw <- list()
-
-for (n in c("Shannon", "InvSimpson")) {
-  for(i in test.kw){
-    if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
-      rich.kw <- rich}
-    kruskal <- kruskal.test(rich.kw[,n] ~ rich.kw[,i])
-    eta_squared <- (kruskal$statistic - 3 + 1)/(nrow(rich.kw) - 3)
-    f <- sqrt(eta_squared/(1-eta_squared))
-    
-    tab <- c(kruskal$method, n, i, kruskal$statistic, kruskal$parameter, kruskal$p.value, f)
-    kw[[paste0(n, "_", i)]] <- tab
-    
-  }}
-
-kw <- as.data.frame(do.call(rbind, kw))
-colnames(kw) <- c("Test", "Variable1", "Variable2", "Chi2", "df", "p-value", "Effect size")
-
-kw$p.adj.BH.same.var <- NA
-kw$p.adj.bonferroni.same.var <- NA
-
-for (i in test.kw){
-  kw[kw$Variable2 == i,]$p.adj.BH.same.var <- p.adjust(kw[kw$Variable2 == i,]$`p-value`, method = "BH")
-  kw[kw$Variable2 == i,]$p.adj.bonferroni.same.var <- p.adjust(kw[kw$Variable2 == i,]$`p-value`, method = "bonferroni")
-}
-
-kw$p.adj.BH <- p.adjust(kw$`p-value`, method = "BH")
-kw$p.adj.bonferroni <- p.adjust(kw$`p-value`, method = "bonferroni")
-
-write.xlsx(list(kw, rich.kw), file = file.path(a.stats, "Kruskal.wallis.xlsx"))
-
-# Post hoc analysis
-
-ph <- list()
-for (n in c("Shannon", "InvSimpson")) {
-  for(i in test.kw){
-    if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
-      rich.kw <- rich}
-    p.adj = "BH"
-    posthocw <- pairwise.wilcox.test(rich.kw[,n],rich.kw[,i], paired = F, p.adjust=p.adj)
-    df <- rbind(posthocw$p.value, c(posthocw$method, posthocw$p.adjust), c(n,i))
-    ph[[paste0(n, "_", i)]] <- df
-  }}
-write.xlsx(ph, file = file.path(a.stats, paste0("Kruskal.wallis_posthoc.MW.",p.adj,".xlsx")), rowNames = T)
-
-# Post hoc analysis
-ph <- list()
-for (n in c("Shannon", "InvSimpson")) {
-  for(i in test.kw){
-    if(i == "Diagnosis"){rich.kw <- rich[rich$Diagnosis != "V.a. NSCLC",]}else{
-      rich.kw <- rich}
-    p.adj = "BH"
-    rich.kw <- rich.kw[,c(n,i)]
-    colnames(rich.kw) <- c("Variable", "Group")
-    posthocd <- rstatix::dunn_test(rich.kw, Variable ~ Group, p.adjust.method = p.adj)
-    posthocd$.y. <- paste(n, i, p.adj)
-    ph[[paste0(n, "_", i)]] <- posthocd
-  }}
-
-write.xlsx(ph, file = file.path(a.stats, paste0("Kruskal.wallis_posthoc.dunn.",p.adj,".xlsx")), rowNames = T)
-}
-#### End ####
-
-#### Convert sample data to data frame ####
-
-# Convert to long data frame for the facets
-rich_long <- rich %>%
-  pivot_longer(cols = c(Shannon, InvSimpson),
-               names_to = "alpha_measure",
-               values_to = "alpha_value")
-
-rich_long$alpha_measure <- factor(rich_long$alpha_measure, levels = c("Shannon", "InvSimpson"))
-
-#### End ####
-
-#### Visualization ####
+#### Plot theme settings ####
 text_size = 30
 thm <- theme(text = element_text(size = text_size),
              axis.text.x = element_blank(),
@@ -311,252 +46,23 @@ thm <- theme(text = element_text(size = text_size),
 thm.x <- theme(text = element_text(size = text_size),
                axis.text.x = element_text(angle = -30, hjust = 0),
                legend.position = "bottom")
-#### Plots ####
+#### End ####
 
-# Lung
-if (only_tumor == F){
-P1 <- ggplot(rich_long, aes(x = Lung, y = alpha_value, color = Lung, fill = Lung)) 
+#### Select samples ####
 
-P1.1 <- P1 + geom_point() + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = lung_col) + scale_color_manual(values = lung_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm
+physeq_alpha = physeq
 
-P1.1
+physeq_alpha = subset_samples(physeq_alpha, sample_names(physeq_alpha) %in% c(rownames(sample_info[!sample_info$Sample_or_Control %in% c("Negative control sample", "Positive control sample"),]))) 
+physeq_alpha = subset_samples(physeq_alpha, sample_data(physeq_alpha)$Isolation == "Direct_Isolation") 
+physeq_alpha = subset_samples(physeq_alpha, sample_data(physeq_alpha)$Diagnosis %in% c("Benign", "SCLC", "NSCLC")) 
 
-ggsave(plot = P1.1, file.path(a.plots, "01-Lung.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P1.1, file.path(a.plots, "01-Lung.svg"), width = 10, height = 8, dpi = 300)
-}
-
-# Diagnosis
-if (all_Diagnosis == T | length(selected_Diagnosis) > 1){
-P2 <- ggplot(rich_long, aes(x = Diagnosis, y = alpha_value, color = Diagnosis, fill = Diagnosis)) 
-
-P2.1 <- P2 + geom_point() + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = diagnosis_col) + scale_color_manual(values = diagnosis_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL, color = "Diagnosis", fill = "Diagnosis") + thm
-
-P2.1
-
-ggsave(plot = P2.1, file.path(a.plots, "02-Diagnosis.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P2.1, file.path(a.plots, "02-Diagnosis.svg"), width = 10, height = 8, dpi = 300)
-}
-
-# Smoking
-P4 <- ggplot(subset(rich_long, !is.na(History.of.smoking)), aes(x = History.of.smoking, y = alpha_value, color = History.of.smoking, fill = History.of.smoking)) 
-
-P4.1 <- P4 + geom_point() + geom_boxplot(alpha = 0.5, na.rm = T) +
-  scale_fill_manual(values = smokerh_col) + scale_color_manual(values = smokerh_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL, color = "History of smoking", fill = "History of smoking") + thm 
-
-P4.1
-
-ggsave(plot = P4.1, file.path(a.plots, "04-History.of.smoking.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P4.1, file.path(a.plots, "04-History.of.smoking.svg"), width = 10, height = 8, dpi = 300)
-
-P41 <- ggplot(subset(rich_long, !is.na(History.of.smoking.y.n)), aes(x = History.of.smoking.y.n, y = alpha_value, color = History.of.smoking.y.n, fill = History.of.smoking.y.n)) 
-
-P41.1 <- P41 + geom_point() + geom_boxplot(alpha = 0.5, na.rm = T) +
-  scale_fill_manual(values = smoker_col) + scale_color_manual(values = smoker_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL, color = "History of smoking", fill = "History of smoking") + thm 
-
-P41.1
-
-ggsave(plot = P41.1, file.path(a.plots, "04-History.of.smoking.y.nes.no.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P41.1, file.path(a.plots, "04-History.of.smoking.y.nes.no.svg"), width = 10, height = 8, dpi = 300)
-
-P5 <- ggplot(subset(rich_long, !is.na(Active.smoker)), aes(x = Active.smoker, y = alpha_value, color = Active.smoker, fill = Active.smoker)) 
-
-P5.1 <- P5 + geom_point() + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = smoker_col) + scale_color_manual(values = smoker_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL, color = "Active smoker", fill = "Active smoker") + thm
-
-P5.1
-
-ggsave(plot = P5.1, file.path(a.plots, "05-Active.smoker.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P5.1, file.path(a.plots, "05-Active.smoker.svg"), width = 10, height = 8, dpi = 300)
-
-# Histology
-if (all_Diagnosis == F & length(selected_Diagnosis) == 1){if (selected_Diagnosis == "NSCLC") {
-P3 <- ggplot(subset(rich_long, !is.na(Histology.NSCLC)), aes(x = Histology.NSCLC, y = alpha_value, color = Histology.NSCLC, fill = Histology.NSCLC)) 
-
-P3.1 <- P3 + geom_point() + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = histology_col) + scale_color_manual(values = histology_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL, color = "Histology", fill = "Histology") + thm +
-  guides(color = guide_legend(ncol = 2), fill = guide_legend(ncol = 2))
-
-P3.1
-
-ggsave(plot = P3.1, file.path(a.plots, "03-Histology.NSCLC.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P3.1, file.path(a.plots, "03-Histology.NSCLC.svg"), width = 10, height = 8, dpi = 300)
-}}
-
-# Lung + Diagnosis
-if (only_tumor == F){
-P12 <- ggplot(rich_long, aes(x = Lung, y = alpha_value, color = Diagnosis, fill = Diagnosis)) 
-
-P12.1 <- P12 + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = diagnosis_col) + scale_color_manual(values = diagnosis_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = "Lung", color = "Diagnosis", fill = "Diagnosis") + thm.x
-
-P12.1
-
-ggsave(plot = P12.1, file.path(a.plots, "012-Diagnosis_lung.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P12.1, file.path(a.plots, "012-Diagnosis_lung.svg"), width = 10, height = 8, dpi = 300)
-
-P13 <- ggplot(rich_long, aes(x = Diagnosis, y = alpha_value, color = Lung, fill = Lung)) 
-
-P13.1 <- P13 + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = lung_col) + scale_color_manual(values = lung_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = "Diagnosis", color = "Lung", fill = "Lung") + thm.x
-
-P13.1
-
-ggsave(plot = P13.1, file.path(a.plots, "013-Lung_Diagnosis.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P13.1, file.path(a.plots, "013-Lung_Diagnosis.svg"), width = 10, height = 8, dpi = 300)
-}
-
-# Side
-P14 <- ggplot(rich_long, aes(x = Side, y = alpha_value, color = Side, fill = Side)) 
-
-P14.1 <- P14 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm
-
-P14.1
-
-ggsave(plot = P14.1, file.path(a.plots, "014-Side.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P14.1, file.path(a.plots, "014-Side.svg"), width = 10, height = 8, dpi = 300)
-
-# Lobe
-P15 <- ggplot(subset(rich_long, !is.na(Lobe)), aes(x = Lobe, y = alpha_value, color = Lobe, fill = Lobe)) 
-
-P15.1 <- P15 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm
-
-P15.1
-
-ggsave(plot = P15.1, file.path(a.plots, "014-Lobe.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P15.1, file.path(a.plots, "014-Lobe.svg"), width = 10, height = 8, dpi = 300)
-
-# Isolation
-if (only_direct == F & only_culture == F){
-P6 <- ggplot(rich_long, aes(x = Isolation, y = alpha_value, color = Isolation, fill = Isolation)) 
-
-P6.1 <- P6 + geom_point() + geom_boxplot(alpha = 0.5) +
-  scale_fill_manual(values = isolation_col) + scale_color_manual(values = isolation_col) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm +
-  guides(color = guide_legend(ncol = 2), fill = guide_legend(ncol = 2))
-
-P6.1
-
-ggsave(plot = P6.1, file.path(a.plots, "06-Isolation.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P6.1, file.path(a.plots, "06-Isolation.svg"), width = 10, height = 8, dpi = 300)
-
-P61 <- ggplot(rich_long, aes(x = Lung, y = alpha_value, shape = Isolation, color = Diagnosis)) 
-
-P61.1 <- P61 + geom_boxplot_pattern(aes(pattern = Isolation, fill = Diagnosis), pattern_fill = "white", alpha = 0.3, pattern_spacing = 0.02, outlier.shape=NA) +
-  scale_fill_manual(values = diagnosis_col) + scale_color_manual(values = diagnosis_col) +
-  scale_pattern_manual(values = c("stripe","none"), name= "Isolation") +
-  labs(y = NULL, x = NULL, color = "Diagnosis", fill = "Diagnosis", shape = "Isolation") + thm.x +
-  geom_point(position=position_jitterdodge(jitter.width = 0),alpha=0.6, size = 3) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  guides(pattern = guide_legend(ncol = 1), shape = guide_legend(ncol = 1))
-
-P61.1
-
-ggsave(plot = P61.1, file.path(a.plots, "061-Lung_Diagnosis_isolation.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P61.1, file.path(a.plots, "061-Lung_Diagnosis_isolation.svg"), width = 10, height = 8, dpi = 300)
-}
-
-# Sex
-P7 <- ggplot(rich_long, aes(x = Sex, y = alpha_value, color = Sex, fill = Sex)) 
-
-P7.1 <- P7 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm
-
-P7.1
-
-ggsave(plot = P7.1, file.path(a.plots, "07-Sex.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P7.1, file.path(a.plots, "07-Sex.svg"), width = 10, height = 8, dpi = 300)
-
-# Synchronous tumor
-if (only_non_synchronous == F){
-P16 <- ggplot(rich_long, aes(x = Synchronous.tumor, y = alpha_value, color = Synchronous.tumor, fill = Synchronous.tumor)) 
-
-P16.1 <- P16 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = NULL) + thm +
-  guides(color = guide_legend(nrow = 3), fill = guide_legend(nrow = 3))
-
-P16.1
-
-ggsave(plot = P16.1, file.path(a.plots, "016-Synchronous.tumor.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P16.1, file.path(a.plots, "016-Synchronous.tumor.svg"), width = 10, height = 8, dpi = 300)
-}
-
-# T
-P8 <- ggplot(subset(rich_long, !is.na(T)), aes(x = T, y = alpha_value)) 
-  
-P8.1 <- P8 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = "T") + theme(text = element_text(size = text_size))
-
-P8.1
-  
-ggsave(plot = P8.1, file.path(a.plots, "08.1-T.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P8.1, file.path(a.plots, "08.1-T.svg"), width = 10, height = 8, dpi = 300)
-
-# N
-P8.2 <- ggplot(subset(rich_long, !is.na(N)), aes(x = N, y = alpha_value)) 
-
-P8.2 <- P8.2 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = "N") + theme(text = element_text(size = text_size))
-
-P8.2
-
-ggsave(plot = P8.2, file.path(a.plots, "08.2-N.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P8.2, file.path(a.plots, "08.2-N.svg"), width = 10, height = 8, dpi = 300)
-
-# M
-P8.3 <- ggplot(subset(rich_long, !is.na(M)), aes(x = M, y = alpha_value)) 
-
-P8.3 <- P8.3 + geom_point() + geom_boxplot(alpha = 0.5) +
-  facet_wrap(. ~ alpha_measure, scales = "free_y") +
-  labs(y = NULL, x = "M") + theme(text = element_text(size = text_size))
-
-P8.3
-
-ggsave(plot = P8.3, file.path(a.plots, "08.1-M.tiff"), width = 10, height = 8, dpi = 300)
-ggsave(plot = P8.3, file.path(a.plots, "08.1-M.svg"), width = 10, height = 8, dpi = 300)
+sample_data(physeq_alpha)$LibrarySizeGroup <- ifelse(sample_data(physeq_alpha)$LibrarySizeDecontam >= 1000, ">=1000", "<1000")
 
 #### End ####
-}
-
-
-#### Alpha diversity following structure of the questions ####
-
-
-#### Directed questions ####
-
-physeq = physeq_o
-physeq = subset_samples(physeq, sample_names(physeq) %in% c(rownames(sample_info[!sample_info$Sample_or_Control %in% c("Negative control sample", "Positive control sample"),]))) 
-physeq = subset_samples(physeq, sample_data(physeq)$Isolation == "Direct_Isolation") 
 
 #### Convert sample data to data frame ####
 
-rich <- data.frame(sample_data(physeq))
+rich <- data.frame(sample_data(physeq_alpha))
 dim(rich)
 
 # Convert to long data frame for the facets
@@ -594,27 +100,115 @@ ggsave(file.path(qc.dir, paste0("LibSize_", index, "_direct.svg")), width = 11, 
 
 #### End ####
 
-#### Create directories for results ####
+#### Q0: Is there a difference between Batches ####
+kw <- list()
 
-a.stats <- file.path(res.dir, "2.Alpha_stats", "Directed_questions")
-a.plots <- file.path(res.dir, "3.Alpha_plots", "Directed_questions")
+for (n in c("Shannon", "InvSimpson")) {
+  kruskal <- kruskal.test(rich[,n] ~ rich[,"Batch"])
+  eta_squared <- (kruskal$statistic - 3 + 1)/(nrow(rich) - 3)
+  f <- sqrt(eta_squared/(1-eta_squared))
+  
+  tab <- c(kruskal$method, n, "Batch", kruskal$statistic, kruskal$parameter, kruskal$p.value, f)
+  kw[[n]] <- tab
+  
+}
 
-dir.create(a.stats, recursive = T)
-dir.create(a.plots, recursive = T)
+kw <- as.data.frame(do.call(rbind, kw))
+colnames(kw) <- c("Test", "Variable1", "Variable2", "Chi2", "df", "p-value", "Effect size")
 
-#### End ####
+kw$p.adj.BH <- p.adjust(kw$`p-value`, method = "BH")
+kw$p.adj.bonferroni <- p.adjust(kw$`p-value`, method = "bonferroni")
+kw
 
-#### Plot them settings ####
-text_size = 30
-thm <- theme(text = element_text(size = text_size),
-             axis.text.x = element_blank(),
-             axis.ticks.x = element_blank(),
-             legend.position = "bottom")
+write.xlsx(list(kw,rich), file.path(a.stats, "Q0.xlsx"), rowNames = T)
 
-thm.x <- theme(text = element_text(size = text_size),
-               axis.text.x = element_text(angle = -30, hjust = 0),
-               legend.position = "bottom")
-#### End ####
+ph <- list()
+for (n in c("Shannon", "InvSimpson")) {
+  posthocw <- pairwise.wilcox.test(rich[,n],rich[,"Batch"], paired = F, p.adjust= "BH")
+  df <- rbind(posthocw$p.value, c(posthocw$method, posthocw$p.adjust), c(n,"Batch"))
+  ph[[n]] <- df
+}
+ph
+
+write.xlsx(ph, file = file.path(a.stats, "Q0_posthoc.MW.xlsx"), rowNames = T)
+
+P.Q0 <- ggplot(rich_long, aes(x = Batch, y = alpha_value, color = Batch, fill = Batch)) +
+  geom_point() + geom_boxplot(alpha = 0.5) +
+  facet_wrap(. ~ alpha_measure, scales = "free_y") +
+  labs(y = NULL, x = NULL, color = "Batch", fill = "Batch") + thm
+
+P.Q0
+
+ggsave(plot = P.Q0, file.path(a.plots, "P.Q0.tiff"), width = 10, height = 8, dpi = 300)
+ggsave(plot = P.Q0, file.path(a.plots, "P.Q0.svg"), width = 10, height = 8, dpi = 300)
+
+#### Q0.1: Is there a difference between <1000 and >= 1000 ASV counts? ####
+
+wt <- list()
+
+for (n in c("Shannon", "InvSimpson")) {
+  W_test <- wilcox.test(rich[, n] ~ rich[, "LibrarySizeGroup"], data = rich, exact = T)
+  z <- abs(qnorm(W_test$p.value/2))
+  r <- z/sqrt(nrow(rich))
+  
+  tab <- c(W_test$method, n, "Lung", W_test$statistic, W_test$p.value, r)
+  wt[[n]] <- tab
+}
+
+wt <- as.data.frame(do.call(rbind, wt))
+colnames(wt) <- c("Test", "Variable1", "Variable2", "Statistic", "p-value", "Effect size")
+
+wt$p.adj.BH <- p.adjust(wt$`p-value`, method = "BH")
+wt$p.adj.bonferroni <- p.adjust(wt$`p-value`, method = "bonferroni")
+wt
+
+write.xlsx(list(wt,rich), file.path(a.stats, "Q0.1.xlsx"), rowNames = T)
+
+P.Q0.1 <- ggplot(rich_long, aes(x = LibrarySizeGroup, y = alpha_value, color = LibrarySizeGroup, fill = LibrarySizeGroup)) +
+  geom_point() + geom_boxplot(alpha = 0.5) +
+  facet_wrap(. ~ alpha_measure, scales = "free_y") +
+  labs(y = NULL, x = NULL) + thm
+
+P.Q0.1
+
+ggsave(plot = P.Q0.1, file.path(a.plots, "P.Q0.1.tiff"), width = 10, height = 8, dpi = 300)
+ggsave(plot = P.Q0.1, file.path(a.plots, "P.Q0.1.svg"), width = 10, height = 8, dpi = 300)
+
+# In diseased lung
+wt <- list()
+
+for (n in c("Shannon", "InvSimpson")) {
+  for (i in c("Diseased", "Normal")) {  
+    W_test <- wilcox.test(rich[rich$Lung == i, n] ~ rich[rich$Lung == i, "LibrarySizeGroup"], data = rich, exact = T)
+    z <- abs(qnorm(W_test$p.value/2))
+    r <- z/sqrt(nrow(rich[rich$LibrarySizeGroup == i,]))
+    
+    tab <- c(W_test$method, n, "Lung", i, W_test$statistic, W_test$p.value, r)
+    wt[[paste0(n, "_", i)]] <- tab
+  }}
+
+wt <- as.data.frame(do.call(rbind, wt))
+colnames(wt) <- c("Test", "Variable1", "Variable2", "Lung", "Statistic", "p-value", "Effect size")
+
+wt$p.adj.BH.same.lung <- NA
+wt$p.adj.bonferroni.same.lung <- NA
+
+for (i in c("Diseased", "Normal")){
+  wt[wt$Lung == i,]$p.adj.BH.same.lung <- p.adjust(wt[wt$Lung == i,]$`p-value`, method = "BH")
+  wt[wt$Lung == i,]$p.adj.bonferroni.same.lung <- p.adjust(wt[wt$Lung == i,]$`p-value`, method = "bonferroni")
+}
+wt
+write.xlsx(list(wt,rich), file.path(a.stats, "Q0.1b.xlsx"), rowNames = T)
+
+Q0.1b <- ggplot(rich_long[rich_long$Lung == "Diseased",], aes(x = LibrarySizeGroup, y = alpha_value, color = LibrarySizeGroup, fill = LibrarySizeGroup)) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(. ~ alpha_measure, scales = "free_y") +
+  labs(y = NULL, x = "Lung", color = "Diagnosis", fill = "Diagnosis") + thm.x
+
+Q0.1b
+
+ggsave(plot = Q0.1b, file.path(a.plots, "P.Q0.1b.tiff"), width = 10, height = 8, dpi = 300)
+ggsave(plot = Q0.1b, file.path(a.plots, "P.Q0.1b.svg"), width = 10, height = 8, dpi = 300)
 
 #### Q1: Is there a difference between Diseased vs the parallel Normal Lung? ####
 
@@ -622,7 +216,7 @@ thm.x <- theme(text = element_text(size = text_size),
 wt <- list()
 
 for (n in c("Shannon", "InvSimpson")) {
-    W_test <- wilcox.test(rich[, n] ~ rich[, "Lung"], data = rich, paired = T, exact = T)
+    W_test <- wilcox.test(rich[rich$Lung == "Diseased", n], rich[rich$Lung == "Normal", n], data = rich, paired = T, exact = T)
     z <- abs(qnorm(W_test$p.value/2))
     r <- z/sqrt(nrow(rich))
     
@@ -655,7 +249,8 @@ wt <- list()
 
 for (n in c("Shannon", "InvSimpson")) {
   for (i in c("NSCLC", "SCLC", "Benign")) {  
-  W_test <- wilcox.test(rich[rich$Diagnosis == i, n] ~ rich[rich$Diagnosis == i, "Lung"], data = rich, paired = T, exact = T)
+  W_test <- wilcox.test(rich[rich$Diagnosis == i & rich$Lung == "Diseased", n],
+                          rich[rich$Diagnosis == i & rich$Lung == "Normal", n], data = rich, paired = T, exact = T)
   z <- abs(qnorm(W_test$p.value/2))
   r <- z/sqrt(nrow(rich[rich$Diagnosis == i,]))
   
@@ -693,7 +288,9 @@ ggsave(plot = P.Q1b, file.path(a.plots, "P.Q1b.svg"), width = 10, height = 8, dp
 wt <- list()
 
 for (n in c("Shannon", "InvSimpson")) {
-  W_test <- wilcox.test(rich[rich$Synchronous.tumor == "No", n] ~ rich[rich$Synchronous.tumor == "No", "Lung"], data = rich, paired = T, exact = T)
+  W_test <- wilcox.test(rich[!is.na(rich$Synchronous.tumor) & rich$Synchronous.tumor == "No" & rich$Lung == "Diseased", n],
+                        rich[!is.na(rich$Synchronous.tumor) & rich$Synchronous.tumor == "No" & rich$Lung == "Normal", n],
+                        data = rich, paired = T, exact = T)
   z <- abs(qnorm(W_test$p.value/2))
   r <- z/sqrt(nrow(rich[rich$Synchronous.tumor == "No", ]))
   
@@ -706,6 +303,7 @@ colnames(wt) <- c("Test", "Variable1", "Variable2", "Statistic", "p-value", "Eff
 
 wt$p.adj.BH <- p.adjust(wt$`p-value`, method = "BH")
 wt$p.adj.bonferroni <- p.adjust(wt$`p-value`, method = "bonferroni")
+wt
 
 write.xlsx(list(wt,rich), file.path(a.stats, "Q2a.xlsx"), rowNames = T)
 
@@ -725,8 +323,10 @@ wt <- list()
 
 for (n in c("Shannon", "InvSimpson")) {
   for (i in c("NSCLC", "SCLC")) {  
-    W_test <- wilcox.test(rich[rich$Diagnosis == i & rich$Synchronous.tumor == "No", n] ~
-                            rich[rich$Diagnosis == i & rich$Synchronous.tumor == "No", "Lung"], data = rich, paired = T, exact = T)
+    W_test <- wilcox.test(rich[rich$Diagnosis == i & !is.na(rich$Synchronous.tumor) & 
+                                 rich$Synchronous.tumor == "No" & rich$Lung == "Diseased", n],
+                            rich[rich$Diagnosis == i & !is.na(rich$Synchronous.tumor) &
+                                   rich$Synchronous.tumor == "No" & rich$Lung == "Normal", n], data = rich, paired = T, exact = T)
     z <- abs(qnorm(W_test$p.value/2))
     r <- z/sqrt(nrow(rich[rich$Diagnosis == i & rich$Synchronous.tumor == "No",]))
     
@@ -785,7 +385,7 @@ colnames(kw) <- c("Test", "Variable1", "Variable2", "Chi2", "df", "p-value", "Ef
 kw$p.adj.BH <- p.adjust(kw$`p-value`, method = "BH")
 kw$p.adj.bonferroni <- p.adjust(kw$`p-value`, method = "bonferroni")
 
-write.xlsx(list(kw,rich), file.path(a.stats, "Q3.xlsx"), rowNames = T)
+write.xlsx(list(kw,rich.diag), file.path(a.stats, "Q3.xlsx"), rowNames = T)
 
 ph <- list()
 for (n in c("Shannon", "InvSimpson")) {
@@ -820,7 +420,7 @@ mwut <- list()
 
 for (n in c("Shannon", "InvSimpson")){
     if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
-    U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"Histology.NSCLC"], data = rich.NSCLC, paired = F, exact = exact)
+    U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"Histology.NSCLC"], data = rich.NSCLC, exact = exact)
     z <- abs(qnorm(U_test$p.value/2))
     r <- z/sqrt(nrow(rich.NSCLC))           #Effect size calculation
     tab <- c(U_test$method, n, "Histology.NSCLC", U_test$statistic, U_test$p.value, r)
@@ -855,7 +455,7 @@ mwut <- list()
 for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes",]) <51){exact = T}else{exact = F}
   U_test <- wilcox.test(rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes",n] ~
-                          rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes","Histology.NSCLC"], data = rich.NSCLC, paired = F, exact = exact)
+                          rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes","Histology.NSCLC"], data = rich.NSCLC, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
   r <- z/sqrt(nrow(rich.NSCLC[rich.NSCLC$History.of.smoking.y.n == "Yes",]))           #Effect size calculation
   tab <- c(U_test$method, n, "Histology.NSCLC", U_test$statistic, U_test$p.value, r)
@@ -891,7 +491,7 @@ mwut <- list()
 
 for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
-  U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"History.of.smoking.y.n"], data = rich.NSCLC, paired = F, exact = exact)
+  U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"History.of.smoking.y.n"], data = rich.NSCLC, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
   r <- z/sqrt(nrow(rich.NSCLC))           #Effect size calculation
   tab <- c(U_test$method, n, "History.of.smoking.y.n", U_test$statistic, U_test$p.value, r)
@@ -919,6 +519,43 @@ P.Q5a
 ggsave(plot = P.Q5a, file.path(a.plots, "P.Q5a.tiff"), width = 10, height = 8, dpi = 300)
 ggsave(plot = P.Q5a, file.path(a.plots, "P.Q5a.svg"), width = 10, height = 8, dpi = 300)
 
+# NSCLC Adenocarcinoma
+# Create data frames with Adenocarcinoma and diseased lung
+rich.adeno <- rich.NSCLC[rich.NSCLC$Histology.NSCLC == "Adenocarcinoma",]
+rich_long.adeno <- rich_long.NSCLC[rich_long.NSCLC$Histology.NSCLC == "Adenocarcinoma",]
+
+mwut <- list()
+
+for (n in c("Shannon", "InvSimpson")){
+  if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
+  U_test <- wilcox.test(rich.adeno[,n] ~ rich.adeno[,"History.of.smoking.y.n"], data = rich.adeno, exact = exact)
+  z <- abs(qnorm(U_test$p.value/2))
+  r <- z/sqrt(nrow(rich.adeno))           #Effect size calculation
+  tab <- c(U_test$method, n, "History.of.smoking.y.n", U_test$statistic, U_test$p.value, r)
+  mwut[[n]] <- tab
+}
+
+mwut <- as.data.frame(do.call(rbind, mwut))
+colnames(mwut) <- c("Test", "Variable1", "Variable2", "Statistic", "p-value", "Effect size")
+
+mwut$p.adj.BH <- p.adjust(mwut$`p-value`, method = "BH")
+mwut$p.adj.bonferroni <- p.adjust(mwut$`p-value`, method = "bonferroni")
+
+mwut
+
+write.xlsx(list(mwut,rich), file.path(a.stats, "Q5aa.xlsx"), rowNames = T)
+
+P.Q5aa <- ggplot(subset(rich_long.adeno, !is.na(History.of.smoking.y.n)), aes(x = History.of.smoking.y.n, y = alpha_value, color = History.of.smoking.y.n, fill = History.of.smoking.y.n)) +
+  geom_point() + geom_boxplot(alpha = 0.5, na.rm = T) +
+  scale_fill_manual(values = smoker_col) + scale_color_manual(values = smoker_col) +
+  facet_wrap(. ~ alpha_measure, scales = "free_y") +
+  labs(y = NULL, x = NULL, color = "History of smoking", fill = "History of smoking") + thm 
+
+P.Q5aa
+
+ggsave(plot = P.Q5aa, file.path(a.plots, "P.Q5aa.tiff"), width = 10, height = 8, dpi = 300)
+ggsave(plot = P.Q5aa, file.path(a.plots, "P.Q5aa.svg"), width = 10, height = 8, dpi = 300)
+
 # Benign
 # Create data frame with benign and diseased lung
 rich.ben <- rich[rich$Diagnosis == "Benign"  & rich$Lung == "Diseased",]
@@ -928,7 +565,7 @@ mwut <- list()
 
 for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.ben) <51){exact = T}else{exact = F}
-  U_test <- wilcox.test(rich.ben[,n] ~ rich.ben[,"History.of.smoking.y.n"], data = rich.ben, paired = F, exact = exact)
+  U_test <- wilcox.test(rich.ben[,n] ~ rich.ben[,"History.of.smoking.y.n"], data = rich.ben, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
   r <- z/sqrt(nrow(rich.ben))           #Effect size calculation
   tab <- c(U_test$method, n, "History.of.smoking.y.n", U_test$statistic, U_test$p.value, r)
@@ -1098,7 +735,7 @@ mwut <- list()
 
 for (n in c("Shannon", "InvSimpson")){
   if(nrow(rich.NSCLC) <51){exact = T}else{exact = F}
-  U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"M"], data = rich.NSCLC, paired = F, exact = exact)
+  U_test <- wilcox.test(rich.NSCLC[,n] ~ rich.NSCLC[,"M"], data = rich.NSCLC, exact = exact)
   z <- abs(qnorm(U_test$p.value/2))
   r <- z/sqrt(nrow(rich.NSCLC))           #Effect size calculation
   tab <- c(U_test$method, n, "M", U_test$statistic, U_test$p.value, r)
@@ -1125,3 +762,4 @@ P.Q6c
 ggsave(plot = P.Q6c, file.path(a.plots, "P.Q6c.tiff"), width = 10, height = 8, dpi = 300)
 ggsave(plot = P.Q6c, file.path(a.plots, "P.Q6c.svg"), width = 10, height = 8, dpi = 300)
 
+#### End ####
