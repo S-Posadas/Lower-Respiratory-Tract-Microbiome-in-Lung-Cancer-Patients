@@ -1,6 +1,6 @@
 
 # Beta diversity #
-# Outlier is LML_088
+
 #### Package setup ####
 
 Sys.setenv(language = "EN")
