@@ -10,7 +10,7 @@ fi
 DIR=trimmed_cutadapt3/${FOLDER}
 mkdir -p $DIR
 
-for file1 in $(ls trimmed_cutadapt/${FOLDER}/*1.fastq.gz)
+for file1 in $(ls ${FOLDER}/*1.fastq.gz)
 do
     file2=${file1%%1.fastq.gz}"2.fastq.gz"
     sample=$(basename ${file1%%R1.fastq.gz})
