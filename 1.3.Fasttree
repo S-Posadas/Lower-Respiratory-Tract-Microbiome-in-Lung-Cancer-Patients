@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
-INPUT="Results/aligned_asvs.fasta"
-OUTPUT="Results/tree.nwk"
+INPUT="aligned_asvs.fasta"
+OUTPUT="tree.nwk"
 
 FastTree -gtr -gamma -nt $INPUT > $OUTPUT
 
