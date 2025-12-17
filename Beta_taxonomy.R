@@ -62,7 +62,7 @@ thm <- theme(text = element_text(size = text_size),
              legend.position = "bottom")
 
 thm.beta <- theme(text = element_text(size = text_size),
-             legend.position = "bottom")
+                  legend.position = "bottom")
 
 thm.x <- theme(text = element_text(size = text_size),
                axis.text.x = element_text(angle = -30, hjust = 0),
@@ -223,7 +223,7 @@ box_plot_maaslin <- function(output_dir,
                      ncol = ncol,
                      legend_title = legend_lab) 
     }
-
+    
     if(nfeatures == 1){w = 4}else if(nfeatures < 5){w = 3.2*nfeatures}else{w = 16}
     ggsave(file.path(output_dir, "significant_results.svg"), width = w, height = 6*n, dpi = 300, limitsize = FALSE)
     #ggsave(file.path(output_dir, "significant_results.tiff"), width = w, height = 6*n, dpi = 300)
@@ -319,13 +319,13 @@ clean_tax_names_lefser <- function(physeq) {
 }
 
 run_lefser_analysis <- function(physeq, group_var, output_dir, 
-                               # norm = "CPM", 
-                               # taxa_rank = "all",
-                               # kw_cutoff = 0.05,
-                               # wilcoxon_cutoff = 0.05, 
-                               # lda_cutoff = 2,
-                               # bootstrap_n = 30,
-                               col_palette = NULL) {
+                                # norm = "CPM", 
+                                # taxa_rank = "all",
+                                # kw_cutoff = 0.05,
+                                # wilcoxon_cutoff = 0.05, 
+                                # lda_cutoff = 2,
+                                # bootstrap_n = 30,
+                                col_palette = NULL) {
   
   # Check that group variable exists
   if (!group_var %in% colnames(sample_data(physeq))) {
@@ -404,7 +404,7 @@ run_lefser_analysis <- function(physeq, group_var, output_dir,
       #ggsave(file.path(output_dir, paste0(prefix, "_lda_bar.tiff")), p_lda, width = w, height = h, dpi = 300)
       ggsave(file.path(output_dir, paste0(prefix, "_lda_bar.svg")), p_lda, width = w, height = h, dpi = 300)
       
-     # p_clad <- lefser::lefserPlotClad(res_sub, showTipLabels = T, colors = col_palette)
+      # p_clad <- lefser::lefserPlotClad(res_sub, showTipLabels = T, colors = col_palette)
       #ggsave(file.path(output_dir, paste0(prefix, "_clad_bar.svg")), p_clad, width = 10, height = 10, dpi = 300)
       
     })
@@ -463,7 +463,7 @@ facets_condition <- function(phy, var, top, taxa, nrow = 1){
           legend.title = element_text(size = 24)) +
     scale_y_continuous(
       trans = scales::pseudo_log_trans(base = 10),
-     # breaks = c(0, 0.01, 0.1, 1, 10, 100),
+      # breaks = c(0, 0.01, 0.1, 1, 10, 100),
       breaks = c(0, 1, 5, 10, 20, 30, 100),
       labels = function(x) format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
     )
@@ -512,8 +512,8 @@ plot_abundance_ASV = function(physeq, ylabn = "Relative abundance (%)",
   mphyseq <- subset(mphyseq, Abundance > 0)
   marks_no_sci <- function(x) format(x, big.mark = ".", decimal.mark = ",", scientific = F)
   P <- ggplot(data = mphyseq,
-         mapping = aes_string(x = X_var, y = "Abundance",
-                              color = Color, fill = Color)) + thm +
+              mapping = aes_string(x = X_var, y = "Abundance",
+                                   color = Color, fill = Color)) + thm +
     # geom_point(size = 1, alpha = 0.1,
     #            position = position_jitter(width = 0.3)) +
     geom_boxplot(fill = NA) +
@@ -613,7 +613,7 @@ plot_most_abundant <- function(q, tax_levels = c("Phylum", "Genus"), n_top = 20,
       ggsave(file.path(bar_output_dir, paste0(tax_level, "_relative.", format)), p_rel, width = 12, height = 8, dpi = 300)
       ggsave(file.path(bar_output_dir, paste0(tax_level, "_barplot.", format)), p_bar, width = 13, height = 8, dpi = 300)
       ggsave(file.path(bar_output_dir, paste0(tax_level, "_boxplot.", format)), p_box, width = 18, height = 16, dpi = 300)
-    #  ggsave(file.path(bar_output_dir, paste0(tax_level, "_boxplot.", format)), p_box, width = 20, height = 9, dpi = 300)
+      #  ggsave(file.path(bar_output_dir, paste0(tax_level, "_boxplot.", format)), p_box, width = 20, height = 9, dpi = 300)
     }
     
   }
@@ -637,27 +637,27 @@ plot_most_abundant <- function(q, tax_levels = c("Phylum", "Genus"), n_top = 20,
 
 # Maaslin2 analysis parameters
 params <- list(
-  Q1.1a = list(name = "Q1.1a.all_directly_isolated_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
-  Q1.2a = list(name = "Q1.2a.main-D_directly_isolated_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
-  Q1.3 = list(name = "Q1.3a.main-D-individually_directly_isolated_lung"),
-  Q2.1a = list(name = "Q2.1a.all_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
-  Q2.2a = list(name = "Q2.2a.main-D_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
-  Q2.3 = list(name = "Q2.3a.main-D-individually_directly_isolated_non_synchronous_lung"),
-  Q3.1a = list(name = "Q3.1a.diagnosis", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-  Q3.2a = list(name = "Q3.2a.diagnosis_nonsmokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-  Q3.3a = list(name = "Q3.3a.diagnosis_smokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-  Q4.1a = list(name = "Q4.1a.histology", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
-  Q4.2a = list(name = "Q4.2a.histology_nonsmokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
-  Q4.3a = list(name = "Q4.3a.histology_smokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
-  Q5.1a = list(name = "Q5.1a.main-D_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
- Q5.2a = list(name = "Q5.2a.NSCLC_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
- Q5.3a = list(name = "Q5.3a.Benign_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
- Q5.4a = list(name = "Q5.4a.Adenocarcinoma_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
- Q6.1a = list(name = "Q6.1a.NSCLC_T", fixed = "T", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(4,2,5,1)], lab_plot = "T"),
- Q6.2a = list(name = "Q6.2a.NSCLC_N", fixed = "N", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(3:4,2,5,1)]),
- Q6.2.1a = list(name = "Q6.2a.NSCLC_N_twolevels", fixed = "Ntwo", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(3:4,2,5,1)], lab_plot = "N"),
- Q6.3a = list(name = "Q6.3a.NSCLC_M", fixed = "M", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[3:4]),
- Q7a = list(name = "Q7a.NSCLC_PostopPneumonia", fixed = "Postop..pneumonia", rand = NULL, ref = NULL, col = scales::hue_pal()(2)[2:1], lab_plot = "Pneumonia"),
+  Q1.1 = list(name = "Q1.1.all_directly_isolated_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
+  Q1.2 = list(name = "Q1.2.main-D_directly_isolated_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
+  Q1.3 = list(name = "Q1.3.main-D-individually_directly_isolated_lung"),
+  Q2.1 = list(name = "Q2.1.all_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
+  Q2.2 = list(name = "Q2.2.main-D_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = "Study_Nr", ref = "Lung,Normal", col = lung_col, paired = T,  pairing_var = "Study_Nr"),
+  Q2.3 = list(name = "Q2.3.main-D-individually_directly_isolated_non_synchronous_lung"),
+  Q3.1 = list(name = "Q3.1.diagnosis", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q3.2 = list(name = "Q3.2.diagnosis_nonsmokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q3.3 = list(name = "Q3.3.diagnosis_smokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q4.1 = list(name = "Q4.1.histology", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
+  Q4.2 = list(name = "Q4.2.histology_nonsmokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
+  Q4.3 = list(name = "Q4.3.histology_smokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col, lab_plot = "Histology"),
+  Q5.1 = list(name = "Q5.1.main-D_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
+  Q5.2 = list(name = "Q5.2.NSCLC_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
+  Q5.3 = list(name = "Q5.3.Benign_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
+  Q5.4 = list(name = "Q5.4.Adenocarcinoma_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
+  Q6.1 = list(name = "Q6.1.NSCLC_T", fixed = "T", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(4,2,5,1)], lab_plot = "T"),
+  Q6.2 = list(name = "Q6.2.NSCLC_N", fixed = "N", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(3:4,2,5,1)]),
+  Q6.2.1 = list(name = "Q6.2.NSCLC_N_twolevels", fixed = "Ntwo", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[c(3:4,2,5,1)], lab_plot = "N"),
+  Q6.3 = list(name = "Q6.3.NSCLC_M", fixed = "M", rand = NULL, ref = NULL, col = scales::hue_pal()(5)[3:4]),
+  Q7a = list(name = "Q7a.NSCLC_PostopPneumonia", fixed = "Postop..pneumonia", rand = NULL, ref = NULL, col = scales::hue_pal()(2)[2:1], lab_plot = "Pneumonia"),
 )
 
 # Function to subset phyloseq object
@@ -670,7 +670,7 @@ subset_physeq <- function(physeq, q){
     subset_samples(Sample_or_Control == "True sample" &
                      Isolation == "Direct_Isolation" &
                      LibrarySizeDecontam > 0)
-
+  
   # Custom subsetting for specific questions
   if(grepl("Q1|Q2", q)){
     study_nrs <- sample_data(physeq_0)$Study_Nr
@@ -679,8 +679,8 @@ subset_physeq <- function(physeq, q){
     keep <- sample_data(physeq_0)$Study_Nr %in% dup_studies
     physeq_sub <- prune_samples(keep, physeq_0)  # This replaces subset_samples()
     #physeq_sub <- subset_samples(physeq_0, Study_Nr %in% dup_studies)
-   
-  
+    
+    
     if (grepl("Q1.2", q)) {
       physeq_sub <- subset_samples(physeq_sub, Diagnosis %in% c("Benign", "NSCLC", "SCLC"))
     } else if (grepl("Q2", q)) {
@@ -688,7 +688,7 @@ subset_physeq <- function(physeq, q){
       if (grepl("Q2.2", q)) {
         physeq_sub <- subset_samples(physeq_sub, Diagnosis %in% c("Benign", "NSCLC", "SCLC"))
       }}
-  
+    
   } else if (grepl("Q3", q)) {
     physeq_sub <- subset_samples(physeq_0,
                                  Lung == "Diseased" &
@@ -799,7 +799,7 @@ for(q in names(params)){
 physeq_tax <- physeq
 physeq_tax_re <- physeq_re_bc
 otu_table(physeq_tax_re) <- otu_table(physeq_tax_re)*100
-  
+
 # Taxonomic levels to plot
 tax_levels <- c("Phylum", "Family", "Genus")
 
@@ -828,7 +828,7 @@ for (q in names(params)) {
   
   # Custom subsetting for specific questions
   physeq_sub <- subset_physeq(physeq_maas0, q)
-
+  
   # Run for each taxonomic level
   for (level in tax_levels) {
     if (level == "ASV") {
@@ -887,36 +887,36 @@ for (q in names(params)) {
 #### Save matrix for correlations ####
 
 # List of phyloseq objects to use for correlations
-  physeq_list <- list(
-    #abs = clean_tax_names_maaslin(physeq),
-    rel = clean_tax_names_maaslin(physeq_re),
-    rel_bc = clean_tax_names_maaslin(physeq_re_bc)
-  )
+physeq_list <- list(
+  #abs = clean_tax_names_maaslin(physeq),
+  rel = clean_tax_names_maaslin(physeq_re),
+  rel_bc = clean_tax_names_maaslin(physeq_re_bc)
+)
 
 
 # Loop through each phyloseq object and save matrices
 for (name in names(physeq_list)) {
   physeq_current <- physeq_list[[name]]
   physeq_current <- subset_samples(physeq_current, colSums(otu_table(physeq_current)) != 0 & !is.na(colSums(otu_table(physeq_current))))
-
+  
   physeq_current <- physeq_current %>%
     subset_samples(Sample_or_Control == "True sample" &
                      Isolation == "Direct_Isolation" &
                      LibrarySizeDecontam > 0)
-
+  
   otu_table(physeq_current) <- otu_table(physeq_current)*100
-
+  
   matrix <- list()  # Initialize results list
-    # Process each taxonomic level
+  # Process each taxonomic level
   for (taxon in c("Phylum", "Class", "Order", "Family", "Genus")) {
     physeq_glom <- tax_glom(physeq_current, taxrank = taxon)
     taxa_names(physeq_glom) <- tax_table(physeq_glom)[, taxon]
     matrix[[taxon]] <- merge(sample_data(physeq_glom), t(otu_table(physeq_glom)), by = 0)
   }
-
+  
   # Add ASV-level data
   matrix[["ASV"]] <- merge(sample_data(physeq_current), t(otu_table(physeq_current)), by = 0)
-
+  
   # Save to Excel
   write.xlsx(matrix, file = file.path(rhea.dir, paste0("correlation_matrix_", name, "_per.xlsx")))
 }
@@ -1040,38 +1040,40 @@ sig.cutoff <- 0.05
 for (q in names(params)) {
   p <- params[[q]]
   
-#' The name of the independant variable that the analysis will be performed on
-independant_variable_name <- params[[q]]$fixed
-
-### For paired tests only:
-if (!is.null(params[[q]]$paired)){
-  if(isTRUE(params[[q]]$paired)){
-    paired = T
-    
-    #' The name of the dependent variable that the analysis will be performed on (different time points)
-    dependant_variable_name <- independant_variable_name
-    
-    #' The name of the ID variable that the analysis will be performed on (the id of the subject that was followed overtime)
-    id_name = params[[q]]$pairing_var
-    
-    #' Missing values are removed by default ("NO").
-    #' If missing values should be replaced by Skillings-Mack method please change this parameter to "YES"
-    ReplaceMissingValues ="NO"
-  }else(paired = F)
-}else(paired = F)
-
-### End of settings for paired tests
-
-for (taxon in tax_levels) {
+  #' The name of the independant variable that the analysis will be performed on
+  independant_variable_name <- params[[q]]$fixed
   
-#' Taxon for analysis. Needs to be set if for loop is turned off 
-taxon <- taxon
-
-# Load the correlation matrix
-original_table <- read.xlsx(input_file, sheet = taxon)
-original_table <- subset_data(original_table, q)
-
-# Run Rhea
-source(file.path(res.dir, "Scripts/Rhea.R"))
+  ### For paired tests only:
+  if (!is.null(params[[q]]$paired)){
+    if(isTRUE(params[[q]]$paired)){
+      paired = T
+      
+      #' The name of the dependent variable that the analysis will be performed on (different time points)
+      dependant_variable_name <- independant_variable_name
+      
+      #' The name of the ID variable that the analysis will be performed on (the id of the subject that was followed overtime)
+      id_name = params[[q]]$pairing_var
+      
+      #' Missing values are removed by default ("NO").
+      #' If missing values should be replaced by Skillings-Mack method please change this parameter to "YES"
+      ReplaceMissingValues ="NO"
+    }else(paired = F)
+  }else(paired = F)
+  
+  ### End of settings for paired tests
+  
+  for (taxon in tax_levels) {
+    
+    #' Taxon for analysis. Needs to be set if for loop is turned off 
+    taxon <- taxon
+    
+    # Load the correlation matrix
+    original_table <- read.xlsx(input_file, sheet = taxon)
+    original_table <- subset_data(original_table, q)
+    
+    # Run Rhea
+    source(file.path(res.dir, "Scripts/Rhea.R"))
   }
 }
+
+#### End ####
