@@ -1,13 +1,13 @@
 #!/usr/bin/bash
 
-FASTA="Results_trimmed_cutadapt3_20241118/fasta_tab.fa"
-OUTDIR="Results_trimmed_cutadapt3_20241118/2.blast"
+FASTA="fasta_tab.fa"
+OUTDIR="2.blast"
 DBDIR=16S_ribosomal_RNA_blast/16S_ribosomal_RNA
 
 mkdir -p $OUTDIR 
 
-BLASTBIN=/media/michelep/aggrim/Guides_Manuals/ramirez/Sara/Programs/blast/ncbi-blast-2.14.1+/bin
-export BLASTDB=/media/michelep/aggrim/Guides_Manuals/ramirez/Sara/Programs/blast/ # Change to directory containing blast databases
+BLASTBIN=Sara/Programs/blast/ncbi-blast-2.14.1+/bin
+export BLASTDB=Sara/Programs/blast/ # Change to directory containing blast databases
 
 ${BLASTBIN}/blastn -query $FASTA \
 	-db $DBDIR \
