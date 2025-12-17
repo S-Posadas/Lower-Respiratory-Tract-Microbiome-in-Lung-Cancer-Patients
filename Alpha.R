@@ -32,8 +32,8 @@ load(file.path(res.dir, "RData", "4.physeq.decontam.RData"))
 
 #### Create directories for results ####
 
-a.stats <- file.path(res.dir, "2.Alpha_stats_excluded")
-a.plots <- file.path(res.dir, "3.Alpha_plots_excluded")
+a.stats <- file.path(res.dir, "Alpha_stats")
+a.plots <- file.path(res.dir, "Alpha_plots")
 
 dir.create(a.stats, recursive = T)
 dir.create(a.plots, recursive = T)
@@ -56,9 +56,9 @@ thm.x <- theme(text = element_text(size = text_size),
 
 physeq_alpha = physeq
 physeq_alpha <- subset_samples(physeq_alpha, 
-                              Sample_or_Control == "True sample" &
-                              Isolation == "Direct_Isolation"# &
-                                # Diagnosis %in% c("Benign", "SCLC", "NSCLC")
+                               Sample_or_Control == "True sample" &
+                                 Isolation == "Direct_Isolation"# &
+                               # Diagnosis %in% c("Benign", "SCLC", "NSCLC")
 )
 physeq_alpha = subset_samples(physeq_alpha, !is.na(colSums(otu_table(physeq_alpha))) & colSums(otu_table(physeq_alpha)) != 0) 
 
@@ -160,7 +160,7 @@ run_kruskal_test <- function(data, div_measure, group) {
   results_df$p.adj.bonferroni <- p.adjust(results_df$p.value, method = "bonferroni")
   
   return(results_df)
-
+  
 }
 
 run_pairwise_mannwhitney <- function(data, div_measure, group, p.adjust.method = "BH") {
@@ -246,11 +246,11 @@ alpha_plot <- function(data, x_var, col_palette = NULL, y_var = "alpha_value", f
   ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]], 
                    fill = .data[[fill_var]], color = .data[[color_var]])) +
     geom_boxplot(alpha = 0.5) +
-   # geom_point() +
+    # geom_point() +
     facet_wrap(as.formula(paste("~", facet_var)), scales = scales) +
     scale_fill_manual(values = col_palette) + scale_color_manual(values = col_palette) +
     labs(y = NULL, x = NULL, color = legend_lab, fill = legend_lab) + thm 
-    
+  
 }
 
 #### Questions to answer ####
@@ -271,28 +271,28 @@ alpha_plot <- function(data, x_var, col_palette = NULL, y_var = "alpha_value", f
 
 # Maaslin2 analysis parameters
 params <- list(
-   Q1.1a = list(name = "Q1.1a.all_directly_isolated_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
-   Q1.2a = list(name = "Q1.2a.main-D_directly_isolated_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
-   Q1.3 = list(name = "Q1.3a.main-D-individually_directly_isolated_lung"),
-   Q2.1a = list(name = "Q2.1a.all_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
-   Q2.2a = list(name = "Q2.2a.main-D_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
-   Q2.3 = list(name = "Q2.3a.main-D-individually_directly_isolated_non_synchronous_lung"),
-   Q3.1a = list(name = "Q3.1a.diagnosis", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-   Q3.2a = list(name = "Q3.2a.diagnosis_nonsmokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-   Q3.3a = list(name = "Q3.3a.diagnosis_smokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
-   Q4.1a = list(name = "Q4.1a.histology", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
-   Q4.2a = list(name = "Q4.2a.histology_nonsmokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
-   Q4.3a = list(name = "Q4.3a.histology_smokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
-   Q5.1a = list(name = "Q5.1a.main-D_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
-   Q5.2a = list(name = "Q5.2a.NSCLC_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
-   Q5.3a = list(name = "Q5.3a.Benign_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
-   Q5.4a = list(name = "Q5.4a.Adenocarcinoma_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
-   Q6.1a = list(name = "Q6.1a.NSCLC_T", fixed = "T", rand = NULL, ref = NULL),
-   Q6.2a = list(name = "Q6.2a.NSCLC_N", fixed = "N", rand = NULL, ref = NULL),
-   Q6.2.1a = list(name = "Q6.2a.NSCLC_N_twolevels", fixed = "N", rand = NULL, ref = NULL),
-   Q6.3a = list(name = "Q6.3a.NSCLC_M", fixed = "M", rand = NULL, ref = NULL),
-   Q7a = list(name = "Q7a.NSCLC_PostopPneumonia", fixed = "Postop..pneumonia", rand = NULL, ref = NULL),
-   Q7b = list(name = "Q7b.NSCLC_PostopPneumonia_batch", fixed = "Postop..pneumonia", rand = "Batch", ref = NULL)
+  Q1.1 = list(name = "Q1.1.all_directly_isolated_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
+  Q1.2 = list(name = "Q1.2.main-D_directly_isolated_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
+  Q1.3 = list(name = "Q1.3.main-D-individually_directly_isolated_lung"),
+  Q2.1 = list(name = "Q2.1.all_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
+  Q2.2 = list(name = "Q2.2.main-D_directly_isolated_non_synchronous_lung", fixed = "Lung", rand = NULL, ref = "Lung,Normal", col = lung_col),
+  Q2.3 = list(name = "Q2.3.main-D-individually_directly_isolated_non_synchronous_lung"),
+  Q3.1 = list(name = "Q3.1.diagnosis", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q3.2 = list(name = "Q3.2.diagnosis_nonsmokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q3.3 = list(name = "Q3.3.diagnosis_smokers", fixed = "Diagnosis", rand = NULL, ref = "Diagnosis,Benign", col = diagnosis_col),
+  Q4.1 = list(name = "Q4.1.histology", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
+  Q4.2 = list(name = "Q4.2.histology_nonsmokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
+  Q4.3 = list(name = "Q4.3.histology_smokers", fixed = "Histology.NSCLC", rand = NULL, ref = NULL, col = histology_col),
+  Q5.1 = list(name = "Q5.1.main-D_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
+  Q5.2 = list(name = "Q5.2.NSCLC_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
+  Q5.3 = list(name = "Q5.3.Benign_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col),
+  Q5.4 = list(name = "Q5.4.Adenocarcinoma_smoking", fixed = "History.of.smoking.y.n", rand = NULL, ref = "History.of.smoking.y.n,No", col = smoker_col, lab_plot = "History of smoking"),
+  Q6.1 = list(name = "Q6.1.NSCLC_T", fixed = "T", rand = NULL, ref = NULL),
+  Q6.2 = list(name = "Q6.2.NSCLC_N", fixed = "N", rand = NULL, ref = NULL),
+  Q6.2.1 = list(name = "Q6.2.NSCLC_N_twolevels", fixed = "N", rand = NULL, ref = NULL),
+  Q6.3 = list(name = "Q6.3.NSCLC_M", fixed = "M", rand = NULL, ref = NULL),
+  Q7 = list(name = "Q7a.NSCLC_PostopPneumonia", fixed = "Postop..pneumonia", rand = NULL, ref = NULL),
+  Q7 = list(name = "Q7b.NSCLC_PostopPneumonia_batch", fixed = "Postop..pneumonia", rand = "Batch", ref = NULL)
 )
 
 # Function to subset phyloseq object
@@ -366,8 +366,8 @@ subset_data <- function(data, q){
 
 #### Q1: Is there a difference between Diseased vs the parallel Normal Lung? ####
 
-### Q1.1a.all_directly_isolated_lung (paired test):
-q = "Q1.1a"
+### Q1.1.all_directly_isolated_lung (paired test):
+q = "Q1.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
@@ -375,9 +375,9 @@ rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
 
 # First ensure paired data is properly ordered
 paired_data <- rich_sub %>%
-    filter(Lung %in% c("Diseased", "Normal")) %>%
-    arrange(Study_Nr, Lung)  # Critical for paired tests
-  
+  filter(Lung %in% c("Diseased", "Normal")) %>%
+  arrange(Study_Nr, Lung)  # Critical for paired tests
+
 wt_results <- run_wilcox_test(paired_data, c("Shannon", "InvSimpson"), "Lung", paired = TRUE)
 
 save_results(wt_results, paste0(params[[q]]$name, ".xlsx"))
@@ -387,8 +387,8 @@ Plot <- alpha_plot(rich_sub_long, x_var = "Lung", col_palette = params[[q]]$col)
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q1.2a.main-D_directly_isolated_lung
-q = "Q1.2a"
+### Q1.2.main-D_directly_isolated_lung
+q = "Q1.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
@@ -408,21 +408,21 @@ Plot <- alpha_plot(rich_sub_long, x_var = "Lung", col_palette = params[[q]]$col)
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q1.3a.main-D-individually_directly_isolated_lung
+### Q1.3.main-D-individually_directly_isolated_lung
 # In each of the three main diagnoses
 q = "Q1.3"
 
 wt <- list()
 for (d in c("NSCLC", "SCLC", "Benign")) {  
-    rich_sub <- subset_data(rich, q)  %>% filter(Diagnosis == d)
-    rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
-    paired_data <- rich_sub %>%
-      filter(Lung %in% c("Diseased", "Normal")) %>%
-      arrange(Study_Nr, Lung)  # Critical for paired tests
-    
-    wt_results <- run_wilcox_test(paired_data, c("Shannon", "InvSimpson"), "Lung", paired = TRUE)
-    
-    wt[[d]] <- wt_results
+  rich_sub <- subset_data(rich, q)  %>% filter(Diagnosis == d)
+  rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
+  paired_data <- rich_sub %>%
+    filter(Lung %in% c("Diseased", "Normal")) %>%
+    arrange(Study_Nr, Lung)  # Critical for paired tests
+  
+  wt_results <- run_wilcox_test(paired_data, c("Shannon", "InvSimpson"), "Lung", paired = TRUE)
+  
+  wt[[d]] <- wt_results
 }
 wt <- as.data.frame(do.call(rbind, wt))
 
@@ -440,7 +440,7 @@ Plot
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
 # Plot all diagnoses + individual main diagoses 
-rich_sub <- subset_data(rich, "Q1.1a")  # Q1.1a.all_directly_isolated_lung
+rich_sub <- subset_data(rich, "Q1.1")  # Q1.1.all_directly_isolated_lung
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
 rich_all <- rich_sub_long
@@ -460,8 +460,8 @@ ggsave(plot = Plot_extra, file.path(a.plots, "Q1.all.svg"), width = 10, height =
 
 #### Q2: Is there a difference between Diseased vs the parallel Normal Lung without samples with synchronous tumor? ####
 
-### Q2.1a.all_directly_isolated_non_synchronous_lung (paired test):
-q = "Q2.1a"
+### Q2.1.all_directly_isolated_non_synchronous_lung (paired test):
+q = "Q2.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
@@ -482,8 +482,8 @@ Plot <- alpha_plot(rich_sub_long, x_var = "Lung", col_palette = params[[q]]$col)
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q2.2a.main-D_directly_isolated_non_synchronous_lung
-q = "Q2.2a"
+### Q2.2.main-D_directly_isolated_non_synchronous_lung
+q = "Q2.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
@@ -503,7 +503,7 @@ Plot <- alpha_plot(rich_sub_long, x_var = "Lung", col_palette = params[[q]]$col)
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q2.3a.main-D-individually_directly_isolated_non_synchronous_lung
+### Q2.3.main-D-individually_directly_isolated_non_synchronous_lung
 # In each of the three main diagnoses
 q = "Q2.3"
 
@@ -536,7 +536,7 @@ Plot
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
 # Plot all diagnoses + individual main diagoses 
-rich_sub <- subset_data(rich, "Q2.1a")  # Q2.1a.all_directly_isolated_non_synchronous_lung
+rich_sub <- subset_data(rich, "Q2.1")  # Q2.1.all_directly_isolated_non_synchronous_lung
 rich_sub <- rich_sub[rich_sub$Study_Nr %in% rich_sub$Study_Nr[duplicated(rich_sub$Study_Nr)], ]
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
 rich_all <- rich_sub_long
@@ -560,8 +560,8 @@ ggsave(plot = Plot_extra, file.path(a.plots, "Q2.all.svg"), width = 10, height =
 
 #### Q3: What is the difference between NSCLC vs SCLC vs Bening Tumor? ####
 
-### Q3.1a.diagnosis
-q = "Q3.1a"
+### Q3.1.diagnosis
+q = "Q3.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -596,8 +596,8 @@ ggplot(rich_sub_long, aes(x = Diagnosis, y = alpha_value,
 ggsave(file.path(a.plots, paste0(params[[q]]$name, "_smoking_noNA.svg")), width = 10, height = 8, dpi = 300)
 
 
-### Q3.2a.diagnosis_nonsmokers
-q = "Q3.2a"
+### Q3.2.diagnosis_nonsmokers
+q = "Q3.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -613,8 +613,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q3.3a.diagnosis_smokers
-q = "Q3.3a"
+### Q3.3.diagnosis_smokers
+q = "Q3.3"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -637,8 +637,8 @@ ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width 
 
 #### Q4: What are the difference between NSCLC main histologies (Adeno vs Squamous)? ####
 
-### Q4.1a.histology
-q = "Q4.1a"
+### Q4.1.histology
+q = "Q4.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -656,20 +656,20 @@ ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width 
 
 # Plot divided by history of smoking
 rich_sub_long <- dplyr::filter(rich_sub_long, !is.na(History.of.smoking.y.n))
-  
+
 ggplot(rich_sub_long, aes(x = Histology.NSCLC, y = alpha_value, 
-                   fill = History.of.smoking.y.n, color = History.of.smoking.y.n)) +
-    geom_boxplot(alpha = 0.5) +
-    # geom_point() +
-    facet_wrap(as.formula(paste("~", "alpha_measure")), scales = "free_y") +
-    scale_fill_manual(values = smoker_col) + scale_color_manual(values = smoker_col) +
-    labs(y = NULL, x = NULL, color = "History of smoking", fill = "History of smoking") + thm.x
+                          fill = History.of.smoking.y.n, color = History.of.smoking.y.n)) +
+  geom_boxplot(alpha = 0.5) +
+  # geom_point() +
+  facet_wrap(as.formula(paste("~", "alpha_measure")), scales = "free_y") +
+  scale_fill_manual(values = smoker_col) + scale_color_manual(values = smoker_col) +
+  labs(y = NULL, x = NULL, color = "History of smoking", fill = "History of smoking") + thm.x
 
-  ggsave(file.path(a.plots, paste0(params[[q]]$name, "_smoking_noNA.svg")), width = 10, height = 8, dpi = 300)
-  
+ggsave(file.path(a.plots, paste0(params[[q]]$name, "_smoking_noNA.svg")), width = 10, height = 8, dpi = 300)
 
-### Q4.2a.histology_nonsmokers
-q = "Q4.2a"
+
+### Q4.2.histology_nonsmokers
+q = "Q4.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -685,8 +685,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q4.3a.histology_smokers
-q = "Q4.3a"
+### Q4.3.histology_smokers
+q = "Q4.3"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -704,8 +704,8 @@ ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width 
 
 #### Q5: Does history of smoking have an impact on the lung microbiome in NSCLC and Adenocarcinoma? ####
 
-### Q5.1a.main-D_smoking
-q = "Q5.1a"
+### Q5.1.main-D_smoking
+q = "Q5.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -731,8 +731,8 @@ Plot <- alpha_plot(rich_sub_long_sup, x_var = "Diagnosis", fill_var = params[[q]
 Plot + thm.x
 ggsave(plot = Plot + thm.x, file.path(a.plots, paste0(params[[q]]$name, "_diagnosis.svg")), width = 10, height = 8, dpi = 300)
 
-### Q5.2a.NSCLC_smoking
-q = "Q5.2a"
+### Q5.2.NSCLC_smoking
+q = "Q5.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -748,8 +748,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q5.3a.Benign_smoking
-q = "Q5.3a"
+### Q5.3.Benign_smoking
+q = "Q5.3"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -765,8 +765,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-### Q5.4a.Adenocarcinoma_smoking
-q = "Q5.4a"
+### Q5.4.Adenocarcinoma_smoking
+q = "Q5.4"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -783,7 +783,7 @@ Plot
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
 # Correlation between packyears and alpha diversity
-for (q in c("Q5.1a", "Q5.2a", "Q5.3a", "Q5.4a")) {
+for (q in c("Q5.1", "Q5.2", "Q5.3", "Q5.4")) {
   rich_sub <- subset_data(rich, q)
   pack.years <- list()
   for(index in c("Shannon", "InvSimpson")){
@@ -814,8 +814,8 @@ for (q in c("Q5.1a", "Q5.2a", "Q5.3a", "Q5.4a")) {
 
 #### Q6: Does the N and M stage of NSCLC have an impact on the lung microbiome ####
 
-# Q6.1a.NSCLC_T
-q = "Q6.1a"
+# Q6.1.NSCLC_T
+q = "Q6.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -836,8 +836,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-# Q6.2a.NSCLC_N
-q = "Q6.2a"
+# Q6.2.NSCLC_N
+q = "Q6.2"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
@@ -858,8 +858,8 @@ Plot
 #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width = 10, height = 8, dpi = 300)
 
-# Q6.2a.NSCLC_N_twolevels
-q = "Q6.2.1a"
+# Q6.2.NSCLC_N_twolevels
+q = "Q6.2.1"
 
 rich_sub <- subset_data(rich, q)
 rich_sub$Ntwo <- as.numeric(as.character(rich_sub$N))
@@ -891,8 +891,8 @@ ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".svg")), width 
 # #ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, ".tiff")), width = 10, height = 8, dpi = 300)
 # ggsave(plot = Plot, file.path(a.plots, paste0(params[[q]]$name, "gradient.svg")), width = 10, height = 8, dpi = 300)
 
-# Q6.3a.NSCLC_M
-q = "Q6.3a"
+# Q6.3.NSCLC_M
+q = "Q6.3"
 
 rich_sub <- subset_data(rich, q)
 rich_sub_long <- rich_long[rich_long$sample %in% rich_sub$sample,]
