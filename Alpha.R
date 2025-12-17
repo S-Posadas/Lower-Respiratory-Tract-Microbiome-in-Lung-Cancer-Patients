@@ -25,7 +25,7 @@ theme_set(theme_bw())
 
 #### Load output from DADA2 pipeline with original phyloseq object ####
 
-res.dir <- "Results_trimmed_cutadapt3_20241216/2025"
+res.dir <- "Results"
 load(file.path(res.dir, "RData", "4.physeq.decontam.RData"))
 
 #### End ####
