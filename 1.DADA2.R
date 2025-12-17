@@ -1,36 +1,58 @@
 ####Introduction####
+
 # This script infers Amplicon Sequence Variants (ASVs) using the DADA2 pipeline.
-# Primer sequences have been pre-trimmed using Cutadapt.
-# The inferred ASVs are then converted into phyloseq objects. The environment is saved at different stages of the workflow in RData files
+# Adapter sequences have been pre-trimmed using Cutadapt.
+# Taxonomy analysis combines DADA2 and Blast approaches.
+# The inferred ASVs are then converted into phyloseq objects.
+# The environment is saved at different stages of the workflow in RData files
 # for subsequent analyses (e.g. unfiltered phyloseq objects for alpha diversity analysis; filtered phyloseq objects for taxonomy analyses).
+
 #### End ####
 
 #### Package setup ####
 
 Sys.setenv(language = "EN")
+
+# Core DADA2 and sequence analysis
 library(dada2); packageVersion("dada2")
+library(Biostrings)
+
+# Phylogenetics and alignment
+library(ape)
+library(msa)
+
+# Microbiome analysis
 library(vegan)
 library(phyloseq)
-library(msa)
-library(ape)
-library(microViz)
 library(decontam)
+library(microViz)  
+
+# Data manipulation
+library(dplyr)
+library(tibble)   
+library(purrr)    
+
+# Visualization
 library(ggplot2)
 library(gridExtra)
-library(openxlsx)
-library(dplyr)
+library(scales)   
+library(gplots) 
+library(ggstatsplot) 
 theme_set(theme_bw())
+
+# Excel
+library(openxlsx)
 
 #### End ####
 
 #### Set Directory ####
 
-path <- "Data/trimmed_cutadapt3/Samples_NC_PC" # Change to the directory containing the fastq files
+path <- "Data/trimmed_cutadapt3/" # Change to the directory containing the fastq files
 list.files(path)
 
 # Create directories to save results of the analysis 
 
-res.dir <- "Results_trimmed_cutadapt3_20241216"
+res.dir <- "Results"
 qc.dir <- file.path(res.dir, "1.QC")
 tax.dir <- file.path(res.dir, "2.blast")
 R.dir <- file.path(res.dir, "RData")
@@ -42,23 +64,21 @@ dir.create(R.dir, recursive = T)
 #### End ####
 
 #### Quality Control and Filtering####
-# Forward and reverse fastq filenames have format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq
+# Forward and reverse fastq filenames have format: SAMPLENAME_R1.fastq and SAMPLENAME_R2.fastq
 
 fnFs <- sort(list.files(path, pattern="_R1.fastq", full.names = TRUE, recursive = T))
 fnRs <- sort(list.files(path, pattern="_R2.fastq", full.names = TRUE, recursive = T))
 
-fnFs <- fnFs[-grep("Cul|1C_S|2C_S|TSBC", fnFs)]
-fnRs <- fnRs[-grep("Cul|1C_S|2C_S|TSBC", fnRs)]
-
-# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+# Extract sample names
 
 sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
 
-#Inspect read quality profiles
+# Inspect read quality profiles and save as a pdf
 
+pdf(file.path(qc.dir, "quality_profiles_after_cutadapt.pdf"), width = 8, height = 5)
 plotQualityProfile(fnFs[c(5,29,103,141,175,226)])
-
 plotQualityProfile(fnRs[c(5,29,103,141,175,226)])
+dev.off()
 
 # Place filtered files in filtered/ subdirectory
 
@@ -70,33 +90,37 @@ names(filtRs) <- sample.names
 
 # Filter and trim 
 
-# We'll use standard filtering parameters: maxN=0 (DADA2 requires no Ns), truncQ=2, rm.phix=TRUE
-# and  maxEE=2. The maxEE parameter sets the maximum number of "expected errors" allowed in a read,
-# which is a better filter than simply averaging quality scores.
-# Watch out with trunclen, reads have to overlap at the end, you have to try out.
-# maxEE can be eased maxEE=c(2,5) if too many read are lost because of low quality.
+# We'll use standard filtering parameters: maxN=0 (DADA2 requires no Ns), truncQ=2, rm.phix=TRUE.
+# The maxEE parameter (default maxEE = 2) sets the maximum number of "expected errors" allowed in a read,
+# which is a better filter than simply averaging quality scores, was eased to maxEE=c(2,5).
+# Watch out with trunclen, reads have to overlap at the end.
 
-out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(230,230),
+# Define your truncation lengths 
+truncLenF <- 230  # Forward trunc length
+truncLenR <- 230  # Reverse trunc length
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenF,truncLenR),
                      maxN=0, maxEE=c(2,5), truncQ=2, rm.phix=TRUE,
                      compress=TRUE, multithread=FALSE) # On Windows set multithread=FALSE
 head(out)
 
 # Check quality after filtering
 
+pdf(file.path(qc.dir, "quality_profiles_after_dada2_filter.pdf"), width = 8, height = 5)
 plotQualityProfile(filtFs[c(5,29,103,141,175,226)])
-
 plotQualityProfile(filtRs[c(5,29,103,141,175,226)])
+dev.off()
 
 #### End ####
 
 #### Remove empty samples from list ####
+
+# Since we are dealing with low biomass samples, some samples lost all reads after filtering.
 filtFs <- sort(list.files(file.path(path, "filtered"), pattern="_F_filt.fastq", full.names = TRUE, recursive = T))
 filtRs <- sort(list.files(file.path(path, "filtered"), pattern="_R_filt.fastq", full.names = TRUE, recursive = T))
 
 # Set sample names as in metadata
-sample.names <- sapply(strsplit(basename(filtFs), "_"), `[`, 1)
-sample.names <- sub("_F_filt.fastq", "", sample.names) %>% gsub("-", "_", .) #%>%
-# gsub("2C", "2_Cul", .) %>% gsub("1C", "1_Cul", .)
+sample.names <- sapply(strsplit(basename(filtFs), "_"), `[`, 1) %>% gsub("-", "_", .) 
 
 names(filtFs) <- sample.names
 names(filtRs) <- sample.names
@@ -106,7 +130,7 @@ names(filtRs) <- sample.names
 #### Learn the Error Rates ####
 # In the BigData WF (https://benjjneb.github.io/dada2/bigdata.html),
 # it is recommended to learn the error rates and do the sample inference for each run individually.
-# Thus we add already the metadata to know the batch of each sample
+# Thus metadata is already added at this step to know the batch of each sample
 
 sample_info <- read.xlsx("Data/000-LML_Metadata_clinical_Lab_final_20240114.xlsx", rowNames = T, sheet = "Combined_metadata")
 
@@ -141,8 +165,8 @@ lapply(batchs, function(batch) {
 #### End ####
 
 #### ASV inference, merge and first sequence table ####
-# Apply the core sample inference algorithm to the the filtered and trimmed sequence data.
 
+# Apply the core sample inference algorithm to the the filtered and trimmed sequence data.
 dadaFs <- list()
 dadaRs <- list()
 for(batch in unique(filt$Batch)){
@@ -150,8 +174,7 @@ for(batch in unique(filt$Batch)){
   dadaRs[[batch]] <- dada(filt[filt$Batch == batch,"filtRs"], err=errR[[batch]], pool = F, multithread=FALSE)
 }
 
-# Merge paired reads and obtain sequence table - just to compare with priors - can be skipped
-
+# Merge paired reads
 mergers.naive <- list()
 
 for(batch in unique(filt$Batch)){
@@ -160,61 +183,58 @@ for(batch in unique(filt$Batch)){
 }
 
 # Obtain sequence tables
-seqtab.naive <- list()
+seqtab.perbatch.naive <- list()
 for(batch in unique(filt$Batch)){
-  seqtab.naive[[batch]] <- makeSequenceTable(mergers.naive[[batch]])
-  print(batch)
-  print(dim(seqtab.naive[[batch]]))
+  seqtab.perbatch.naive[[batch]] <- makeSequenceTable(mergers.naive[[batch]])
+  message("Batch ", batch, ": ", dim(seqtab.perbatch.naive[[batch]])[1], " samples and ", dim(seqtab.perbatch.naive[[batch]])[2], " sequences")
+}
+
+# Remove chimeras
+seqtab.nochim.perbatch.naive <- list()
+for(batch in unique(filt$Batch)){
+  seqtab.nochim.perbatch.naive[[batch]] <- removeBimeraDenovo(seqtab.perbatch.naive[[batch]], method="consensus", multithread=FALSE, verbose=TRUE)
+  message("Batch ", batch, ": ", dim(seqtab.nochim.perbatch.naive[[batch]])[1], " samples and ", dim(seqtab.nochim.perbatch.naive[[batch]])[2], " non chimeric sequences")
 }
 
 # Merged all sequence tables into one
-seqtab.all.naive <- seqtab.naive[[1]]
-for (i in 2:length(seqtab.naive)) {
-  seqtab.all.naive <- mergeSequenceTables(seqtab.all.naive, seqtab.naive[[i]])
+seqtab.naive <- seqtab.perbatch.naive[[1]]
+seqtab.nochim.naive <- seqtab.nochim.perbatch.naive[[1]]
+for (i in 2:length(seqtab.nochim.perbatch.naive)) {
+  seqtab.naive <- mergeSequenceTables(seqtab.naive, seqtab.perbatch.naive[[i]])
+  seqtab.nochim.naive <- mergeSequenceTables(seqtab.nochim.naive, seqtab.nochim.perbatch.naive[[i]])
 }
 
-seqtab.nochim.naive <- removeBimeraDenovo(seqtab.all.naive, method="consensus", multithread=FALSE, verbose=TRUE)
+dim(seqtab.naive)
+dim(seqtab.nochim.naive)
 
-# Construct sequence table from forward and reverse for priors
-seqtabFs <- list()
-seqtabRs <- list()
-for(batch in unique(filt$Batch)){
-  seqtabFs[[batch]] <- makeSequenceTable(dadaFs[[batch]])
-  seqtabRs[[batch]] <- makeSequenceTable(dadaRs[[batch]])
-  print(batch)
-  print(dim(seqtabFs[[batch]]))
-  print(dim(seqtabRs[[batch]]))
-}
+# Percentage of not chimeric reads
 
-# Merge sequence tables 
-seqtabFs.all <- seqtabFs[[1]]
-for (i in 2:length(seqtabFs)) {
-  seqtabFs.all <- mergeSequenceTables(seqtabFs.all, seqtabFs[[i]])
-}
-seqtabRs.all <- seqtabRs[[1]]
-for (i in 2:length(seqtabRs)) {
-  seqtabRs.all <- mergeSequenceTables(seqtabRs.all, seqtabRs[[i]])
-}
+sum(seqtab.nochim.naive)/sum(seqtab.naive)
 
 #### End ####
 
 #### Second ASV inference with list of prior ASVs, merge and final sequence table ####
 
-# Extract list of prior ASVs
-priorF <- colnames(seqtabFs.all)
-priorR <- colnames(seqtabRs.all)
+# Prepare priors for second pass
+merged_seqs <- colnames(seqtab.nochim.naive)
+
+# For forward reads: take first truncLenF bases of merged sequence
+priorF <- substr(merged_seqs, 1, truncLenF)
+
+# For reverse reads: take last truncLenR bases of merged sequence and reverse-complement
+seq_lengths <- nchar(merged_seqs)
+priorR <- substr(merged_seqs, seq_lengths - truncLenR + 1, seq_lengths)
+priorR_rc <- as.character(reverseComplement(DNAStringSet(priorR)))
 
 # Rerun dada with priors
-
 dadaFs.prior <- list()
 dadaRs.prior <- list()
 for(batch in unique(filt$Batch)){
   dadaFs.prior[[batch]] <- dada(filt[filt$Batch == batch,"filtFs"], err=errF[[batch]], priors = priorF, multithread=FALSE)
-  dadaRs.prior[[batch]] <- dada(filt[filt$Batch == batch,"filtRs"], err=errR[[batch]], priors = priorR, multithread=FALSE)
+  dadaRs.prior[[batch]] <- dada(filt[filt$Batch == batch,"filtRs"], err=errR[[batch]], priors = priorR_rc, multithread=FALSE)
 }
 
 #Merge paired reads
-
 mergers <- list()
 
 for(batch in unique(filt$Batch)){
@@ -222,31 +242,34 @@ for(batch in unique(filt$Batch)){
                                  dadaRs.prior[[batch]], filt[filt$Batch == batch,"filtRs"], verbose=TRUE) # min overlap is 12 as default, but can be adjusted
 }
 
-#Most of your reads should successfully merge. If that is not the case upstream parameters may need
-#to be revisited: Did you trim away the overlap between your reads?
-
-seqtab <- list()
+# Obtain sequence tables
+seqtab.perbatch <- list()
 for(batch in unique(filt$Batch)){
-  seqtab[[batch]] <- makeSequenceTable(mergers[[batch]])
-  print(batch)
-  print(dim(seqtab[[batch]]))
-}
-
-# Merged all sequence tables into one
-seqtab.all <- seqtab[[1]]
-for (i in 2:length(seqtab)) {
-  seqtab.all <- mergeSequenceTables(seqtab.all, seqtab[[i]])
+  seqtab.perbatch[[batch]] <- makeSequenceTable(mergers[[batch]])
+  message("Batch ", batch, ": ", dim(seqtab.perbatch[[batch]])[1], " samples and ", dim(seqtab.perbatch[[batch]])[2], " sequences")
 }
 
 # Remove chimeras
+seqtab.nochim.perbatch <- list()
+for(batch in unique(filt$Batch)){
+  seqtab.nochim.perbatch[[batch]] <- removeBimeraDenovo(seqtab.perbatch[[batch]], method="consensus", multithread=FALSE, verbose=TRUE)
+  message("Batch ", batch, ": ", dim(seqtab.nochim.perbatch[[batch]])[1], " samples and ", dim(seqtab.nochim.perbatch[[batch]])[2], " non chimeric sequences")
+}
 
-seqtab.nochim <- removeBimeraDenovo(seqtab.all, method="consensus", multithread=FALSE, verbose=TRUE)
+# Merged all sequence tables into one
+seqtab <- seqtab.perbatch[[1]]
+seqtab.nochim <- seqtab.nochim.perbatch[[1]]
+for (i in 2:length(seqtab.nochim.perbatch)) {
+  seqtab <- mergeSequenceTables(seqtab, seqtab.perbatch[[i]])
+  seqtab.nochim <- mergeSequenceTables(seqtab.nochim, seqtab.nochim.perbatch[[i]])
+}
 
+dim(seqtab)
 dim(seqtab.nochim)
 
 # Percentage of not chimeric reads
 
-sum(seqtab.nochim)/sum(seqtab.all)
+sum(seqtab.nochim)/sum(seqtab)
 
 #### End ####
 
@@ -257,7 +280,7 @@ getN <- function(x) sum(getUniques(x))
 
 track <- list()
 for(batch in unique(filt$Batch)){
-  track[[batch]] <- cbind(sapply(dadaFs[[batch]], getN), sapply(dadaRs[[batch]], getN), sapply(mergers.naive[[batch]], getN), sapply(dadaFs.prior[[batch]], getN), sapply(dadaRs.prior[[batch]], getN), sapply(mergers[[batch]], getN))
+  track[[batch]] <- cbind(sapply(dadaFs[[batch]], getN), sapply(dadaRs[[batch]], getN), sapply(dadaFs.prior[[batch]], getN), sapply(dadaRs.prior[[batch]], getN), sapply(mergers.naive[[batch]], getN), sapply(mergers[[batch]], getN))
 }
 track <- as.data.frame(do.call(rbind, track))
 
@@ -265,12 +288,11 @@ rownames(out) <- gsub("_.*", "", rownames(out))
 rownames(track) <- gsub("_F_filt.fastq", "", rownames(track))
 rownames(seqtab.nochim) <- gsub("_F_filt.fastq", "", rownames(seqtab.nochim))
 rownames(seqtab.nochim.naive) <- gsub("_F_filt.fastq", "", rownames(seqtab.nochim.naive))
-track <- merge(as.data.frame(out), as.data.frame(track), by = 0, all.x = T) %>% merge(.,rowSums(seqtab.nochim), by.x = "Row.names", by.y = 0) %>% merge(.,rowSums(seqtab.nochim.naive), by.x = "Row.names", by.y = 0)
+track <- merge(as.data.frame(out), as.data.frame(track), by = 0, all.x = T) %>% merge(.,rowSums(seqtab.nochim.naive), by.x = "Row.names", by.y = 0) %>% merge(.,rowSums(seqtab.nochim), by.x = "Row.names", by.y = 0)
 
 # If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
 
-colnames(track) <- c("sample","input", "filtered", "denoisedF.naive", "denoisedR.naive", "merged.naive", "denoisedF.prior", "denoisedR.prior", "merged.prior", "nonchim.prior", "nonchim.naive")
-
+colnames(track) <- c("sample","input", "filtered", "denoisedF.naive", "denoisedR.naive", "denoisedF.prior", "denoisedR.prior", "merged.naive", "merged.prior", "nonchim.naive", "nonchim.prior")
 
 head(track)
 
@@ -281,8 +303,8 @@ write.csv(track, file = file.path(qc.dir, "Pipeline_Track.csv"))
 #### End ####
 
 #### Save RData ####
-# Save as .RData to load in following steps or continue later
 
+# Save as .RData to load in following steps or continue later
 save.image(file.path(R.dir,"1.dada2_track.RData"))
 #load(file.path(R.dir,"1.dada2_track.RData"))
 
@@ -290,71 +312,49 @@ save.image(file.path(R.dir,"1.dada2_track.RData"))
 
 #### Assign taxonomy for Bacteria with ####
 
+# Function
+assign_taxonomy <- function(seqtab, ref_fasta, ref_fasta_species){
+  set.seed(123456789)
+  taxa <- assignTaxonomy(seqtab, ref_fasta, tryRC = TRUE) #tryRC = TRUE -> reverse-complement orientation
+  taxa_species = addSpecies(taxa, ref_fasta_species, allowMultiple=TRUE)
+  return(list(taxa = taxa, taxa_species = taxa_species))
+}
+
 #### GTDB
 ref_fasta_GTDB = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/GTDB_bac120_arc53_ssu_r220_fullTaxo.fa.gz"
-
-#tryRC = TRUE -> reverse-complement orientation
-set.seed(123456789)
-taxa_GTDB <- assignTaxonomy(seqtab.nochim, ref_fasta_GTDB,tryRC = TRUE )
-unname(taxa_GTDB)
-
-taxa_GTDB.print  <- taxa_GTDB # Removing sequence rownames for display only
-rownames(taxa_GTDB.print) <- NULL
-head(taxa_GTDB.print)
-
 ref_fasta_species_GTDB = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/GTDB/GTDB_bac120_arc53_ssu_r220_species.fa.gz"
 
-taxa_species_GTDB = addSpecies(taxa_GTDB, ref_fasta_species_GTDB, allowMultiple=TRUE)
-taxa.print_spp_GTDB  <- taxa_species_GTDB  # Removing sequence rownames for display only
-rownames(taxa.print_spp_GTDB) <- NULL
-head(taxa.print_spp_GTDB)
+taxa_GTDB <- assign_taxonomy(seqtab.nochim, ref_fasta_GTDB, ref_fasta_species_GTDB)
+taxa_species_GTDB = taxa_GTDB[["taxa_species"]]
+
+head(unname(taxa_GTDB[["taxa"]])) # Removing sequence rownames for display only
+head(unname(taxa_species_GTDB))
 
 #### SILVA
 
 ref_fasta_SILVA = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2024/silva_nr99_v138.2_toSpecies_trainset.fa.gz"
-
-#tryRC = TRUE -> reverse-complement orientation
-set.seed(123456789)
-taxa_SILVA <- assignTaxonomy(seqtab.nochim, ref_fasta_SILVA,tryRC = TRUE )
-unname(taxa_SILVA)
-
-taxa_SILVA.print  <- taxa_SILVA # Removing sequence rownames for display only
-rownames(taxa_SILVA.print) <- NULL
-head(taxa_SILVA.print)
-
 ref_fasta_species_SILVA = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/SILVA_2024/silva_v138.2_assignSpecies.fa.gz"
 
-taxa_species_SILVA = addSpecies(taxa_SILVA, ref_fasta_species_SILVA, allowMultiple=TRUE)
-taxa.print_spp_SILVA  <- taxa_species_SILVA  # Removing sequence rownames for display only
-rownames(taxa.print_spp_SILVA) <- NULL
-head(taxa.print_spp_SILVA)
+taxa_SILVA <- assign_taxonomy(seqtab.nochim, ref_fasta_SILVA, ref_fasta_species_SILVA)
+taxa_species_SILVA = taxa_SILVA[["taxa_species"]]
+
+head(unname(taxa_SILVA[["taxa"]])) # Removing sequence rownames for display only
+head(unname(taxa_species_SILVA))
 
 #### eHOMD
 
 ref_fasta_eHOMD = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/eHOMD/eHOMD_RefSeq_dada2_V15.22.fasta.gz"
-
-#tryRC = TRUE -> reverse-complement orientation
-set.seed(123456789)
-taxa_eHOMD <- assignTaxonomy(seqtab.nochim, ref_fasta_eHOMD,tryRC = TRUE )
-unname(taxa_eHOMD)
-
-taxa_eHOMD.print  <- taxa_eHOMD # Removing sequence rownames for display only
-rownames(taxa_eHOMD.print) <- NULL
-head(taxa_eHOMD.print)
-
 ref_fasta_species_eHOMD = "C:/Users/ngs-adm/Desktop/DADA2_Taxonomy_Databases/16S_Taxonomy_Databases/eHOMD/eHOMD_RefSeq_dada2_assign_species_V15.22.fasta.gz"
 
-taxa_species_eHOMD = addSpecies(taxa_eHOMD,ref_fasta_species_eHOMD, allowMultiple=TRUE)
-taxa.print_spp_eHOMD  <- taxa_species_eHOMD  # Removing sequence rownames for display only
-rownames(taxa.print_spp_eHOMD) <- NULL
-head(taxa.print_spp_eHOMD)
+taxa_eHOMD<- assign_taxonomy(seqtab.nochim, ref_fasta_eHOMD, ref_fasta_species_eHOMD)
+taxa_species_eHOMD = taxa_eHOMD[["taxa_species"]]
 
-length(taxa.print_spp[,"Species"][!is.na(taxa.print_spp[,"Species"])])
-length(taxa.print_spp[,"Genus"][!is.na(taxa.print_spp[,"Genus"])])
-length(taxa.print[,"Species"][!is.na(taxa.print[,"Species"])])
+head(unname(taxa_eHOMD[["taxa"]])) # Removing sequence rownames for display only
+head(unname(taxa_species_eHOMD))
+
 #### End ####
 
-#### Make Count and Taxa Tables from naive dada ####
+#### Make count table from naive dada ####
 
 # Giving our seq headers more manageable names (ASV_1, ASV_2...)
 
@@ -379,15 +379,9 @@ colnames(count_tab.naive) <- sub("_F_filt.fastq", "", colnames(count_tab.naive))
 # gsub("2C", "2_Cul", .) %>% gsub("1C", "1_Cul", .)
 write.table(count_tab.naive, file.path(res.dir, "count_tab_naive.tsv"), sep="\t", quote=F, col.names=NA)
 
-# tax table:
-
-#tax_tab <- taxa_species
-# row.names(tax_tab) <- sub(">", "", asv_headers)
-# write.table(tax_tab, "Results/tax_tab_GTDB.tsv", sep="\t", quote=F, col.names=NA)
-
 #### End ####
 
-#### Make Count and Taxa Tables ####
+#### Make count and taxa tables from dada with priors ####
 
 # Giving our seq headers more manageable names (ASV_1, ASV_2...)
 
@@ -430,12 +424,12 @@ write.xlsx(as.data.frame(tax_tab_eHOMD), file.path(tax.dir,"tax_tab_eHOMD.xlsx")
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-#save.image(file.path(R.dir, "2.dada2_taxonomy.RData"))
-load(file.path(R.dir, "2.dada2_taxonomy.RData"))
+save.image(file.path(R.dir, "2.dada2_taxonomy.RData"))
+#load(file.path(R.dir, "2.dada2_taxonomy.RData"))
 
 #### End ####
 
-#### Blast unassigned species with script 1.2 Blast and 1.3 Filter_blast ####
+#### Blast unassigned species with script 1.1 Blast and 1.2 Filter_blast ####
 
 tax_tab <- read.xlsx(file.path(tax.dir,"tax_tab_SILVA_blast_species.xlsx"), rowNames = T)
 tax_tab <- tax_tab[,c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")]
@@ -525,7 +519,6 @@ sample_info <- sample_info %>%
 sample_info$Synchronous.tumor <- factor(sample_info$Synchronous.tumor)
 
 # Select colors for each variable
-
 palette2 <- rev(scales::hue_pal()(2))
 palette3 <-  c("#00BFC4", "#F8766D", "#00BA38")
 palette <- c("#53B400", "#F8766D", "#00C094", "#344cb7",  "#00B6EB" ,"#A58AFF", "#FB61D7") 
@@ -572,50 +565,6 @@ gplots::venn(list(taxonomy=rownames(tax_tab), featuretable=rownames(count_tab)))
 
 #### End ####
 
-#### Rarefaction curves ####
-
-col <- c("black", "darkred", "forestgreen", "orange", "blue", "yellow", "hotpink")
-lty <- c("solid", "dashed", "longdash", "dotdash")
-
-# From decontam physeq (perform after decontam steps below)
-count_tab_decontam = data.frame(otu_table(physeq_decont))
-
-# Exclude controls
-
-count_rar <- count_tab_decontam[,!colnames(count_tab_decontam) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
-
-count_rar <- count_tab.naive[,!colnames(count_tab.naive) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
-
-count_rar <- count_tab[,!colnames(count_tab) %in% rownames(sample_info[sample_info$Sample_or_Control %in% c("Positive control sample", "Negative control sample"),])]
-
-#Exclude samples with 0 counts
-count_rar <- count_rar[, colSums(count_rar) != 0]
-
-# Exclude samples
-
-count_rar <- count_rar[,-grep("013|035|112", colnames(count_rar))]
-
-# Select batch
-unique(sample_info$Batch)
-batch = "6-LML_101-122"
-count_rar <- count_rar[,colnames(count_rar) %in% rownames(sample_info[sample_info$Batch == batch,])]
-
-
-raremax <- min(rowSums(t(count_rar)))
-raremax
-rarefy(t(count_rar), raremax)
-
-# Option 1
-rarecurve(t(count_rar), step = 100,  col = col, lwd=2, lty = lty, ylab = "ASVs", label = T)
-abline(v=(raremax))
-rarecurve(t(count_rar), step = 100,  col = col, lwd=2, lty = lty, ylab = "ASVs", label = F)
-abline(v=(raremax))
-
-# Option 2
-rarecurve(t(count_rar), step = 100, sample = raremax, col = col, lwd=2, lty = lty, ylab = "ASVs", label = T)
-
-#### End ####
-
 #### Phylogenetic tree ####
 
 seqs <- getSequences(seqtab.nochim)
@@ -626,7 +575,7 @@ aligned_asvs <- as(mult, "DNAStringSet")
 names(aligned_asvs) <- seqs
 writeXStringSet(aligned_asvs, filepath = file.path(res.dir, "aligned_asvs.fasta"), format = "fasta")
 
-#-----> Fasttree in ubuntu
+#-----> Fasttree in ubuntu (1.3.Fasttree)
 tree <- read.tree(file.path(res.dir, "tree.nwk"))
 
 #### End ####
@@ -661,6 +610,130 @@ physeq = physeq_dna_tree
 
 #### End ####
 
+#### Save RData ####
+# Save as .RData to load in following steps or continue later
+
+save.image(file.path(R.dir,"3.physeq.original.RData"))
+#load(file.path(R.dir,"3.physeq.original.RData"))
+
+#### End ####
+
+## Filter low Abundance Taxa and count table normalization ##
+
+#### Decontamination of ASVs appearing in negative controls ####
+
+# Save initial library size
+sample_data(physeq)$LibrarySize <- sample_sums(physeq)
+
+# Select negative controls and delete positive ones
+
+PC <- rownames(sample_info[sample_info$Sample_or_Control == "Positive control sample",])
+NC <- rownames(sample_info[sample_info$Sample_or_Control == "Negative control sample",])
+
+ps.decontam <- prune_samples(!sample_names(physeq) %in% PC, physeq)
+ps.decontam <- prune_samples(sample_sums(ps.decontam) != 0, ps.decontam)
+ps.decontam <- prune_taxa(taxa_sums(ps.decontam) != 0, ps.decontam)
+
+sample_data(ps.decontam)$Batch_pooled <- sample_data(ps.decontam)$Batch
+sample_data(ps.decontam)$Batch_pooled[sample_data(ps.decontam)$Batch_pooled %in% c("1-LML_001-006", "2-LML_007-030", "3-LML_031-054", "4-LML_055-077")] <- "1-4 batch"
+sample_data(ps.decontam)$is.neg <- sample_data(ps.decontam)$Sample_or_Control == "Negative control sample"
+
+#' The probability threshold below which the null-hypothesis (not a contaminant) should be rejected in favor of
+#' the alternate hypothesis (contaminant) was set to 0.4 (default 0.1) 
+thr = 0.5
+contamdf.prev <- isContaminant(ps.decontam, method="prevalence", neg="is.neg", threshold=thr, batch = "Batch_pooled")
+table(contamdf.prev$contaminant)
+
+hist(contamdf.prev$p, 100, main="P-values for different thresholds in decontam")
+
+# Make phyloseq object of presence-absence in negative controls and true samples
+ps.pa <- transform_sample_counts(ps.decontam, function(abund) 1*(abund>0))
+ps.pa.neg <- prune_samples(sample_data(ps.pa)$Sample_or_Control == "Negative control sample", ps.pa)
+ps.pa.pos <- prune_samples(sample_data(ps.pa)$Sample_or_Control == "True sample", ps.pa)
+
+# Make data.frame of prevalence in positive and negative samples
+df.pa <- data.frame(pa.pos=taxa_sums(ps.pa.pos), pa.neg=taxa_sums(ps.pa.neg),
+                    contaminant=contamdf.prev$contaminant)
+ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point(size = 2) +
+  xlab("Prevalence (Negative Controls)") + ylab("Prevalence (True Samples)") + 
+  theme(text = element_text(size = 30),
+        legend.position = "bottom")
+
+ggsave(file.path(qc.dir, paste0("Contaminants", thr, ".tiff")), width = 10, height = 10, dpi = 300)
+ggsave(file.path(qc.dir, paste0("Contaminants", thr, ".svg")), width = 10, height = 10, dpi = 300)
+
+contaminants <- as.data.frame(otu_table(prune_taxa(contamdf.prev$contaminant, ps.decontam)))
+contaminants_tax <- merge(tax_tab[rownames(contaminants),], contaminants, by = 0)
+
+write.xlsx(contaminants_tax, file.path(qc.dir, paste0("Contaminants", thr, ".xlsx")))
+
+physeq_decont <- prune_taxa(taxa_sums(physeq) != 0, physeq)
+physeq_decont <- prune_taxa(!taxa_names(physeq_decont) %in% rownames(contaminants), physeq_decont)
+
+physeq_decont
+physeq
+physeq = physeq_decont
+
+# Save library size after decontamination
+sample_data(physeq)$LibrarySizeDecontam <- sample_sums(physeq)
+
+#### End ####
+
+#### Make physeq object from naive dada2 to examine library size ####
+
+head(count_tab.naive)
+head(fasta_tab.naive)
+head(sample_info)
+
+physeq.naive <- phyloseq(otu_table(count_tab.naive, taxa_are_rows = T), sample_data(sample_info))
+# physeq.naive = prune_samples(!sample_names(physeq.naive) %in% rownames(samp_ex), physeq.naive)
+# physeq.naive <- microViz::ps_reorder(physeq.naive, order(sample_names(physeq.naive)))
+# physeq.naive <- prune_taxa(taxa_sums(physeq.naive) != 0, physeq.naive)
+sample_data(physeq.naive)$LibrarySize <- sample_sums(physeq.naive)
+
+#### End ####
+
+#### Save sample sums before and after decontamination ####
+
+combined_sums <- data.frame(
+  naive = sample_sums(physeq.naive),
+  priors = sample_sums(physeq_dna_tree)[match(sample_names(physeq.naive), sample_names(physeq_dna_tree))],
+  decont = sample_sums(physeq_decont)[match(sample_names(physeq.naive), sample_names(physeq_decont))]
+)
+
+write.xlsx(combined_sums, file.path(qc.dir, "sample_sums.xlsx"), rowNames= T)
+
+sums_to_plot <- combined_sums[
+  grepl("LML", rownames(combined_sums)) & 
+     grepl("A1", rownames(combined_sums)) & 
+    !grepl("Cul", rownames(combined_sums)), ]
+
+#sums_to_plot <- sums_to_plot[sums_to_plot$decont < 20000, ]
+
+hist(log10(sums_to_plot$decont), 
+     main = "Library size after decontamination", 
+     xlab = "Log10 Library size", breaks =  200,
+     border = "black")
+
+hist(sums_to_plot$decont, 
+     main = "Library size after decontamination", 
+     xlab = "Library size", breaks =  200,
+     border = "black")
+
+plot(density(sums_to_plot$decont), 
+     main = "Library size after decontamination", 
+     xlab = "Library size", 
+     col = "red", 
+     lwd = 2)
+
+plot(density(log10(sums_to_plot$decont)), 
+     main = "Library size after decontamination", 
+     xlab = "Log10 Library size", 
+     col = "red", 
+     lwd = 2)
+
+#### End ####
+
 #### Remove samples that don´t fit the study conditions ####
 samp_ex = sample_data(physeq)[sample_data(physeq)$Sex.code %in%
                                 c("excluded due to history of chemotherapy", "excluded due to history of radiochemotherapy") |
@@ -675,21 +748,6 @@ physeq = physeq_study
 
 # Reorder samples for later paired tests (so Lung A and B have the same position in the vector)
 physeq <- microViz::ps_reorder(physeq, order(sample_names(physeq)))
-
-#### End ####
-
-#### Make physeq object from naive dada2 to examine library size ####
-
-head(count_tab.naive)
-head(fasta_tab.naive)
-head(sample_info)
-
-physeq.naive <- phyloseq(otu_table(count_tab.naive, taxa_are_rows = T),   #taxa_are_rows=F (if your taxa names on the column not the rows)
-                         sample_data(sample_info))
-physeq.naive = prune_samples(!sample_names(physeq.naive) %in% rownames(samp_ex), physeq.naive)
-physeq.naive <- microViz::ps_reorder(physeq.naive, order(sample_names(physeq.naive)))
-physeq.naive <- prune_taxa(taxa_sums(physeq.naive) != 0, physeq.naive)
-sample_data(physeq.naive)$LibrarySize <- sample_sums(physeq.naive)
 
 #### End ####
 
@@ -742,7 +800,7 @@ ggplot(data=df, aes(x=Lung,  y = count, color=Diagnosis, fill = Diagnosis)) +
   facet_wrap(.~LibrarySizeBreaks)
 
 # Explore correlation of sequencing depth and dna concentration
-library(ggstatsplot)
+
 ggscatterstats(
   data = data.frame(df),
   x = DNA_concentration, 
@@ -764,121 +822,6 @@ ggsave(file.path(qc.dir, "LibSizeDNA_direct.svg"), width = 11, height = 10, dpi 
 
 #### End ####
 
-## Phyloseq Object Filtering ## First filtering step for low count samples and NA phyla ##
-
-#### Remove samples with less than 50 total reads ####
-sample_sums(physeq) #Nr of reads per Sample
-
-#physeq_aboveNreads = prune_samples(sample_sums(physeq)>=50, physeq)
-
-#physeq = physeq_aboveNreads
-
-#### End ####
-
-#### Save RData ####
-# Save as .RData to load in following steps or continue later
-
-#save.image(file.path(R.dir,"3.physeq.original.RData"))
-load(file.path(R.dir,"3.physeq.original.RData"))
-
-#### End ####
-
-## Filter low Abundance Taxa and count table normalization ##
-
-#### Remove ASVs appearing in negative controls ####
-# Select negative controls and delete positive ones
-
-PC <- rownames(sample_info[sample_info$Sample_or_Control == "Positive control sample",])
-NC <- rownames(sample_info[sample_info$Sample_or_Control == "Negative control sample",])
-
-ps.decontam <- prune_samples(!sample_names(physeq) %in% PC, physeq)
-ps.decontam <- prune_samples(sample_data(ps.decontam)$LibrarySize != 0, ps.decontam)
-ps.decontam <- prune_taxa(taxa_sums(ps.decontam) != 0, ps.decontam)
-
-sample_data(ps.decontam)$Batch_pooled <- sample_data(ps.decontam)$Batch
-sample_data(ps.decontam)$Batch_pooled[sample_data(ps.decontam)$Batch_pooled %in% c("1-LML_001-006", "2-LML_007-030", "3-LML_031-054", "4-LML_055-077")] <- "1-4 batch"
-sample_data(ps.decontam)$is.neg <- sample_data(ps.decontam)$Sample_or_Control == "Negative control sample"
-
-#' The probability threshold below which the null-hypothesis (not a contaminant) should be rejected in favor of
-#' the alternate hypothesis (contaminant) was set to 0.4 (default 0.1) 
-thr = 0.5
-contamdf.prev <- isContaminant(ps.decontam, method="prevalence", neg="is.neg", threshold=thr, batch = "Batch_pooled")
-table(contamdf.prev$contaminant)
-
-hist(contamdf.prev$p, 100, main="P-values for different thresholds in decontam")
-
-# Make phyloseq object of presence-absence in negative controls and true samples
-ps.pa <- transform_sample_counts(ps.decontam, function(abund) 1*(abund>0))
-ps.pa.neg <- prune_samples(sample_data(ps.pa)$Sample_or_Control == "Negative control sample", ps.pa)
-ps.pa.pos <- prune_samples(sample_data(ps.pa)$Sample_or_Control == "True sample", ps.pa)
-# Make data.frame of prevalence in positive and negative samples
-df.pa <- data.frame(pa.pos=taxa_sums(ps.pa.pos), pa.neg=taxa_sums(ps.pa.neg),
-                    contaminant=contamdf.prev$contaminant)
-ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point(size = 2) +
-  xlab("Prevalence (Negative Controls)") + ylab("Prevalence (True Samples)") + 
-  theme(text = element_text(size = 30),
-        legend.position = "bottom")
-
-ggsave(file.path(qc.dir, paste0("Contaminants", thr, ".tiff")), width = 10, height = 10, dpi = 300)
-ggsave(file.path(qc.dir, paste0("Contaminants", thr, ".svg")), width = 10, height = 10, dpi = 300)
-
-contaminants <- as.data.frame(otu_table(prune_taxa(contamdf.prev$contaminant, ps.decontam)))
-contaminants_tax <- merge(tax_tab[rownames(contaminants),], contaminants, by = 0)
-
-write.xlsx(contaminants_tax, file.path(qc.dir, paste0("Contaminants", thr, ".xlsx")))
-
-physeq_decont <- prune_taxa(taxa_sums(physeq) != 0, physeq)
-physeq_decont <- prune_taxa(!taxa_names(physeq_decont) %in% rownames(contaminants), physeq_decont)
-
-physeq_decont
-physeq
-physeq = physeq_decont
-
-sample_data(physeq)$LibrarySizeDecontam <- sample_sums(physeq)
-
-#### End ####
-
-#### Save sample sums before and after decontamination ####
-
-combined_sums <- data.frame(
-  naive = sample_sums(physeq.naive),
-  priors = sample_sums(physeq_study)[match(sample_names(physeq.naive), sample_names(physeq_study))],
-  decont = sample_sums(physeq_decont)[match(sample_names(physeq.naive), sample_names(physeq_decont))]
-)
-
-write.xlsx(combined_sums, file.path(qc.dir, "sample_sums.xlsx"), rowNames= T)
-
-sums_to_plot <- combined_sums[
-  grepl("LML", rownames(combined_sums)) & 
-     grepl("A1", rownames(combined_sums)) & 
-    !grepl("Cul", rownames(combined_sums)), ]
-
-#sums_to_plot <- sums_to_plot[sums_to_plot$decont < 20000, ]
-
-hist(log10(sums_to_plot$decont), 
-     main = "Library size after decontamination", 
-     xlab = "Log10 Library size", breaks =  200,
-     border = "black")
-
-hist(sums_to_plot$decont, 
-     main = "Library size after decontamination", 
-     xlab = "Library size", breaks =  200,
-     border = "black")
-
-plot(density(sums_to_plot$decont), 
-     main = "Library size after decontamination", 
-     xlab = "Library size", 
-     col = "red", 
-     lwd = 2)
-
-plot(density(log10(sums_to_plot$decont)), 
-     main = "Library size after decontamination", 
-     xlab = "Log10 Library size", 
-     col = "red", 
-     lwd = 2)
-
-#### End ####
-
 #### Calculate and add alpha diversity to phyloseq object for later analysis ####
 
 sample_data(physeq) <- estimate_richness(physeq, measures = c("Observed","Chao1", "Shannon","Simpson","InvSimpson","ACE")) %>%
@@ -895,6 +838,117 @@ load(file.path(R.dir,"4.physeq.decontam.RData"))
 
 #### End ####
 
+#### Rarefaction curves ####
+
+# Define aesthetics
+col <- c("black", "darkred", "forestgreen", "orange", "blue", "yellow", "hotpink")
+lty <- c("solid", "dashed", "longdash", "dotdash")
+
+# Create named list of count tables
+count_list <- list(
+  ASVs_from_naive_inference = count_tab.naive,
+  ASVs_after_inference_with_list_of_priors = count_tab,
+  ASVs_after_decontamination = data.frame(otu_table(physeq_decont))  # Fixed assignment
+)
+
+rare_plots <- list()  # Store ggplot objects
+
+for (name in names(count_list)) {
+  count_rar <- count_list[[name]]
+  
+  # Exclude controls
+  count_rar <- count_rar[,colnames(count_rar) %in% rownames(sample_info[sample_info$Sample_or_Control == "True sample",])]
+  # Exclude samples with 0 counts
+  count_rar <- count_rar[, colSums(count_rar) != 0]
+  
+  # Generate rarefaction curves
+  result <- rarecurve(t(count_rar), step = 100, label = FALSE)
+  
+  # Convert to data frame
+  rare_df <- map_dfr(seq_along(result), function(i) {
+    curve <- result[[i]]
+    subsample <- attr(curve, "Subsample")
+    
+    tibble(
+      Sample = paste0("Sample_", i),
+      Dataset = name,  # Add dataset identifier
+      Individuals = subsample,
+      Richness = as.numeric(curve),
+      Color = col[(i - 1) %% length(col) + 1],
+      LineType = lty[(i - 1) %% length(lty) + 1]
+    )
+  })
+  
+  # Create plot
+  rare_plot <- ggplot(rare_df, aes(Individuals, Richness)) +
+    geom_line(
+      aes(group = Sample, color = Color, linetype = LineType),
+      linewidth = 0.8,
+      alpha = 0.8
+    ) +
+    scale_color_identity() +
+    scale_linetype_identity() +
+    labs(
+      title = gsub("_", " ", name),
+      x = "Sample Size",
+      y = "ASVs"
+    ) +
+    theme_bw() +
+    theme(
+      text = element_text(size = 20),
+      panel.grid = element_blank(),
+      legend.position = "none",
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+  # Save individual plot
+  ggsave(
+    file.path(qc.dir, paste0(name, "_rarefaction.svg")),
+    rare_plot,
+    width = 8,
+    height = 8,
+    dpi = 300
+  )
+  
+  rare_plots[[name]] <- rare_plot  # Store for combined plot
+}
+
+# Posterior changes for all plots
+# for (name in names(count_list)){
+#   rare_plots[[name]] <- rare_plots[[name]] +
+#     labs(
+#       title = NULL,
+#     )
+# }
+
+# Combine plots 
+combined_plot <- plot_grid(plotlist = rare_plots, ncol = 3,
+                           labels = "AUTO", label_size = 22, label_fontface = "bold")
+combined_plot
+
+ggsave(file.path(qc.dir, "combined_rarefaction.svg"), combined_plot, width = 24, height = 8, dpi = 300)
+
+############ Other options
+# Select batch
+unique(sample_info$Batch)
+batch = "6-LML_101-122"
+count_rar <- count_rar[,colnames(count_rar) %in% rownames(sample_info[sample_info$Batch == batch,])]
+
+raremax <- min(rowSums(t(count_rar)))
+raremax
+rarefy(t(count_rar), raremax)
+
+# Option 1
+rarecurve(t(count_rar), step = 100,  col = col, lwd=2, lty = lty, ylab = "ASVs", label = T)
+abline(v=(raremax))
+rarecurve(t(count_rar), step = 100,  col = col, lwd=2, lty = lty, ylab = "ASVs", label = F)
+abline(v=(raremax))
+
+# Option 2
+rarecurve(t(count_rar), step = 100, sample = raremax, col = col, lwd=2, lty = lty, ylab = "ASVs", label = T)
+
+#### End ####
+
 #### Remove NA Phyla####
 
 rank_names(physeq)
@@ -905,22 +959,6 @@ physeq_oNA <- subset_taxa(physeq, !is.na(Phylum) & !Phylum %in% c("", "uncharact
 
 physeq
 physeq_oNA
-
-# > physeq
-# phyloseq-class experiment-level object
-# otu_table()   OTU Table:         [ 14749 taxa and 251 samples ]
-# sample_data() Sample Data:       [ 251 samples by 66 sample variables ]
-# tax_table()   Taxonomy Table:    [ 14749 taxa by 7 taxonomic ranks ]
-# phy_tree()    Phylogenetic Tree: [ 14749 tips and 14748 internal nodes ]
-# refseq()      DNAStringSet:      [ 14749 reference sequences ]
-# > physeq_oNA
-# phyloseq-class experiment-level object
-# otu_table()   OTU Table:         [ 14631 taxa and 251 samples ]
-# sample_data() Sample Data:       [ 251 samples by 66 sample variables ]
-# tax_table()   Taxonomy Table:    [ 14631 taxa by 7 taxonomic ranks ]
-# phy_tree()    Phylogenetic Tree: [ 14631 tips and 14630 internal nodes ]
-# refseq()      DNAStringSet:      [ 14631 reference sequences ]
-
 physeq = physeq_oNA
 
 table(tax_table(physeq)[, "Phylum"], exclude = NULL)
@@ -936,11 +974,11 @@ prevdf = data.frame(Prevalence = prev0,
                     TotalAbundance = taxa_sums(physeq),
                     tax_table(physeq))
 
-#save ASV Prevalence and Abundance table before filtering
+# Save ASV Prevalence and Abundance table before filtering
 
 write.table(prevdf, file.path(res.dir,"asv_prevdf.tsv"), sep="\t", quote=F, col.names=NA)
 
-#Plot Taxa prevalence v. total counts. Each point is a different taxa. 
+# Plot Taxa prevalence v. total counts. Each point is a different taxa. 
 
 ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(physeq),color=Phylum)) +
   geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +  geom_point(size = 2, alpha = 0.7) +
@@ -959,27 +997,11 @@ Samplepercentage = 0.01
 physeq_filtered = filter_taxa(physeq, function(x) sum(x > countperasv) > (Samplepercentage*length(x)), TRUE)
 physeq_filtered
 physeq
-
-# > physeq_filtered
-# phyloseq-class experiment-level object
-# otu_table()   OTU Table:         [ 3028 taxa and 251 samples ]
-# sample_data() Sample Data:       [ 251 samples by 66 sample variables ]
-# tax_table()   Taxonomy Table:    [ 3028 taxa by 7 taxonomic ranks ]
-# phy_tree()    Phylogenetic Tree: [ 3028 tips and 3027 internal nodes ]
-# refseq()      DNAStringSet:      [ 3028 reference sequences ]
-# > physeq
-# phyloseq-class experiment-level object
-# otu_table()   OTU Table:         [ 14631 taxa and 251 samples ]
-# sample_data() Sample Data:       [ 251 samples by 66 sample variables ]
-# tax_table()   Taxonomy Table:    [ 14631 taxa by 7 taxonomic ranks ]
-# phy_tree()    Phylogenetic Tree: [ 14631 tips and 14630 internal nodes ]
-# refseq()      DNAStringSet:      [ 14631 reference sequences ]
-
 physeq = physeq_filtered
 
 #### End ####
 
-#### Normalize number of reads in each sample using median sequencing depth.####
+#### Normalize number of reads in each sample using median sequencing depth ####
 
 total = median(sample_sums(physeq))
 standf = function(x, t=total) round(t * (x / sum(x)))
@@ -1010,8 +1032,7 @@ plot_abundance = function(physeq, ylabn = "",
     scale_y_log10()
 }
 
-
-#plot the abundance values before and after transformation
+# Plot the abundance values before and after transformation
 
 pl_ab_original  = plot_abundance(physeq,"Original Abundances")
 pl_ab_original_norm  =plot_abundance(physeq_mednorm,"Normalized to squencing depth Abundances")
@@ -1024,7 +1045,7 @@ grid.arrange(pl_ab_original, pl_ab_original_norm, pl_ab_original_norm_re)
 #### Save RData ####
 # Save as .RData to load in following steps or continue later
 
-#save.image(file.path(R.dir,"5.phyloseq.filtered.RData"))
-load(file.path(R.dir,"5.phyloseq.filtered.RData"))
+save.image(file.path(R.dir,"5.phyloseq.filtered.RData"))
+#load(file.path(R.dir,"5.phyloseq.filtered.RData"))
 
 #### End ####
