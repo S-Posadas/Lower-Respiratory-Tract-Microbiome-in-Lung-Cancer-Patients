@@ -1,6 +1,6 @@
 # Lower-Respiratory-Tract-Microbiome-in-Lung-Cancer-Patients
 
-This repository contains code and documentation for the analysis of 16S rRNA gene sequencing data generated from paired bronchial lavage samples collected from patients with suspected lung cancer. The data originate from a single-centre, prospective study including 119 patients, where paired samples were obtained during diagnostic bronchoscopy.
+This repository contains code and documentation for the analysis of 16S rRNA gene sequencing data generated from paired bronchial lavage samples collected from patients with suspected lung cancer. The data originate from a single-centre, prospective study including 119 patients, where paired samples were obtained from both lungs during diagnostic bronchoscopy.
 
 ## Analysis Workflow
 
