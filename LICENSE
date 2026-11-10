@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----------------------------------------------------------------------------
-
-Exception: scripts/lefser_functions.R contains functions modified from the
-lefser Bioconductor package (https://bioconductor.org/packages/lefser),
-Copyright (c) the lefser authors, licensed under the Artistic License 2.0
-(https://opensource.org/license/artistic-2-0). That file is distributed under
-the Artistic License 2.0, not under the MIT License above.
