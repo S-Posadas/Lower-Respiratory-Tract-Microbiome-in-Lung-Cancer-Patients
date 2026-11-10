@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
   library(openxlsx)
 })
 
-source("/home/nanoteam/projects/LML/scripts/lefser_functions.R")
+source("scripts/lefser_functions.R")
 
 theme_set(theme_bw())
 
