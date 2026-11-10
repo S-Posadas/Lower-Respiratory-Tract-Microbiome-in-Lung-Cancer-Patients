@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+
+# Approximate maximum-likelihood tree of the ASVs with FastTree.
+# Input: aligned_asvs.fasta (ClustalW alignment of the final ASVs, written by 1.DADA2_direct.R)
+
+set -euo pipefail
+
+INPUT="aligned_asvs.fasta"
+OUTPUT="tree.nwk"
+
+FastTree -help 2>&1 | head -1 || true   # Print the FastTree version
+
+FastTree -gtr -gamma -nt $INPUT > $OUTPUT

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# HAllA: diagnosis and smoking vs ASVs (Figure 2E, Supplementary Figure 6)
+#
+# 1. halla_input.R   CLR-transformed ASV table (X) and diagnosis/smoking codes (Y)
+# 2. HAllA           normalized mutual information, uniform discretization, FDR 0.05
+# 3. halla_plots.R   labelled copies of the output, violin plots (Supp. Fig 6B)
+# 4. hallagram       all clusters (Supp. Fig 6A) and diagnosis clusters (Figure 2E)
+
+set -euo pipefail
+
+SCRIPTS=$(dirname "$(readlink -f "$0")")
+OUT=Results_direct/halla/diagnosis
+HALLA_ENV=$HOME/miniforge3/envs/halla
+
+# HAllA uses R through rpy2: use the env's own R, not the system R
+RUN_ENV="env -u R_LIBS -u R_LIBS_USER -u R_LIBS_SITE R_HOME=$HALLA_ENV/lib/R"
+
+Rscript "$SCRIPTS/halla_input.R"
+
+$RUN_ENV "$HALLA_ENV/bin/halla" \
+    -x "$OUT/matrixX_clr.txt" \
+    -y "$OUT/matrixY.txt" \
+    -o "$OUT/ASVs_nmi_uniform" \
+    --fdr_alpha 0.05 \
+    -m nmi \
+    --discretize_func uniform
+
+Rscript "$SCRIPTS/halla_plots.R"
+
+for d in labelled labelled_diagnosis; do
+    $RUN_ENV "$HALLA_ENV/bin/hallagram" \
+        -i "$OUT/ASVs_nmi_uniform/$d" \
+        -n -1 \
+        --block_border_width 2 \
+        -o hallagram.pdf
+done

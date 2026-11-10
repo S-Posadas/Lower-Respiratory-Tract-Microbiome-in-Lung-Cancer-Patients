@@ -1,0 +1,17 @@
+#!/usr/bin/bash
+
+read -p "Folder (e.g. Fastq): " INPUT_DIR
+read -p "Type of data for name of output directory(e.g. rawdata/trimmed): " DATATYPE
+
+fastQCdir=${INPUT_DIR}/fastQC/${DATATYPE}
+multiQCdir=${INPUT_DIR}/multiQC
+
+mkdir -p $fastQCdir
+mkdir -p $multiQCdir
+
+for file in $(ls ${INPUT_DIR}/*.fastq.gz)
+do
+    fastqc -t 5 $file -o $fastQCdir
+done
+
+multiqc ${fastQCdir}/*_fastqc.zip -o ${multiQCdir} --filename ${DATATYPE}

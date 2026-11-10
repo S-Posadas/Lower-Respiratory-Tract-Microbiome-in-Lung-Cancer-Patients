@@ -1,0 +1,38 @@
+#!/usr/bin/bash
+
+# Trimming of the raw reads in two cutadapt steps:
+# 1. 16S V1-V2 primers: 27F AGAGTTTGATCCTGGCTCAG at the 5' end of R1 and its reverse complement
+#    at the 3' end of R2; 338R GCTGCCTCCCGTAGGAGT at the 5' end of R2 and its reverse complement
+#    at the 3' end of R1.
+# 2. Nextera adapters, on the output of step 1.
+
+read -p "Directory containing fastq files: " FOLDER
+
+TMP=trimmed_primers/${FOLDER}
+DIR=trimmed_cutadapt/${FOLDER}
+mkdir -p $TMP $DIR
+
+for file1 in $(ls ${FOLDER}/*1_001.fastq.gz)
+do
+    file2=${file1%%1_001.fastq.gz}"2_001.fastq.gz"
+    sample=$(basename ${file1%%R1_001.fastq.gz})
+    echo "Trimming $file1 and $file2"
+
+    # 1. Primers
+    time cutadapt -g AGAGTTTGATCCTGGCTCAG -a ACTCCTACGGGAGGCAGC \
+                  -G GCTGCCTCCCGTAGGAGT -A CTGAGCCAGGATCAAACTCT \
+                  $file1 $file2 \
+                  -j 5 \
+                  -o ${TMP}/${sample}R1.fastq.gz -p ${TMP}/${sample}R2.fastq.gz
+
+    # 2. Nextera adapters
+    time cutadapt -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC \
+                  -G GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -A CTGTCTCTTATACACATCTGACGCTGCCGACGA \
+                  ${TMP}/${sample}R1.fastq.gz ${TMP}/${sample}R2.fastq.gz \
+                  -j 5 \
+                  -o ${DIR}/${sample}R1.fastq.gz -p ${DIR}/${sample}R2.fastq.gz
+
+    rm ${TMP}/${sample}R1.fastq.gz ${TMP}/${sample}R2.fastq.gz
+done
+
+rmdir -p $TMP 2>/dev/null

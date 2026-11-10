@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# PICRUSt2: predicted MetaCyc pathways
+#
+# 1. picrust2_input.R   ASV sequences and raw counts of the directly isolated samples
+# 2. PICRUSt2           full pipeline with default settings (conda env picrust2)
+# 3. picrust2.R         LinDA M0 vs M1 and N0 vs N1-3, heatmap and bar plots
+
+set -euo pipefail
+
+SCRIPTS=$(dirname "$(readlink -f "$0")")
+OUT=Results_direct/picrust2
+PICRUST_ENV=$HOME/miniforge3/envs/picrust2
+THREADS=10
+
+Rscript "$SCRIPTS/picrust2_input.R"
+
+# picrust2_pipeline.py stops if the output folder exists; it calls its
+# helper scripts (place_seqs.py, ...) through PATH
+rm -rf "$OUT/picrust2_out"
+PATH="$PICRUST_ENV/bin:$PATH" picrust2_pipeline.py \
+    -s "$OUT/seqs.fna" \
+    -i "$OUT/raw_counts.tsv" \
+    -o "$OUT/picrust2_out" \
+    -p "$THREADS"
+
+gunzip -kf "$OUT/picrust2_out/pathways_out/path_abun_unstrat.tsv.gz"
+
+Rscript "$SCRIPTS/picrust2.R"
