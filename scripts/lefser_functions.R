@@ -1,6 +1,9 @@
-# Modified lefser functions (lefser package, Bioconductor) used by lefse.R #
-# my_lefser() also returns the Kruskal-Wallis p-value of each marker
-# (kw_p.value); my_lefserClades() runs it at every taxonomic rank; my_lefserPlot()
+# This file contains functions modified from the lefser Bioconductor package
+# (https://bioconductor.org/packages/lefser), Copyright (c) the lefser authors,
+# licensed under the Artistic License 2.0. This file is distributed under the
+# Artistic License 2.0, not under the MIT License of this repository.
+# Changes: my_lefser() also returns the Kruskal-Wallis p-values;
+# my_lefserClades() runs it at every taxonomic rank; my_lefserPlot()
 # is a dot plot of the LDA scores with the p-values as point size.
 
 # Modified scripts from lefser package to return p-values
